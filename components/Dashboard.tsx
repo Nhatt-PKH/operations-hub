@@ -401,7 +401,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   });
 
   // Specific Filter for KHSX
-  const [khsxPhanLoaiFilter, setKhsxPhanLoaiFilter] = useState<string[]>(['THÁNG 12/2025']);
+  const [khsxPhanLoaiFilter, setKhsxPhanLoaiFilter] = useState<string[]>(['THÁNG 01/2026']);
 
   // UNIFIED OVERVIEW DATE FILTER
   const [overviewDateFilters, setOverviewDateFilters] = useState<string[]>([]);
