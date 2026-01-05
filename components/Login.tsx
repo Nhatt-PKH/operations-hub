@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Box, Lock, User, ArrowRight, Loader, Mail, Key } from 'lucide-react';
+import { Box, Lock, User, ArrowRight, Loader, Mail, Key, TrendingUp } from 'lucide-react';
 import { userService } from '../services/userService';
 import { useToast } from '../context/ToastContext';
 
@@ -108,9 +108,9 @@ const Login: React.FC = () => {
       <div className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/20 w-full max-w-md p-8 relative z-10 transition-all duration-300 hover:shadow-wood-200/50">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-wood-600 rounded-2xl shadow-lg mb-4 transform rotate-3 hover:rotate-6 transition-transform">
-            <Box className="w-8 h-8 text-white" />
+            <TrendingUp className="w-8 h-8 text-white" />
           </div>
-          <h2 className="text-2xl font-bold text-wood-900 tracking-tight">Production Status</h2>
+          <h2 className="text-2xl font-bold text-wood-900 tracking-tight">Operations Hub</h2>
           <p className="text-slate-500 text-sm mt-2">Hệ thống quản lý tiến độ sản xuất</p>
         </div>
 
@@ -284,7 +284,7 @@ const Login: React.FC = () => {
         )}
 
         <div className="mt-8 text-center">
-           <p className="text-xs text-slate-400">© 2024 Production App System</p>
+           <p className="text-xs text-slate-400">© 2024 Operations Hub System</p>
         </div>
       </div>
     </div>
