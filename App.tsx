@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Link, useLocation, Navigate, Outlet, useOutletContext } from 'react-router-dom';
-import { LayoutDashboard, Table, Menu, RefreshCw, X, Box, Package, LogOut, Shield, User as UserIcon, Key, Loader, Check, AlertTriangle, Calendar, ShoppingCart, Import, FileText, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, Table, Menu, RefreshCw, X, Box, Package, LogOut, Shield, User as UserIcon, Key, Loader, Check, AlertTriangle, Calendar, ShoppingCart, Import, FileText, ClipboardList, TrendingUp } from 'lucide-react';
 import { fetchProductionData, fetchMaterialData, fetchKhsxData, fetchOrderData, fetchInventoryData, fetchTkbvData, fetchPthspData } from './services/dataService';
 import { DataRow, ColumnDefinition, PRODUCTION_DEFAULT_VIEW_COLUMNS, TARGET_COLUMN_NAMES, APP_VIEWS } from './types';
 import Dashboard from './components/Dashboard';
@@ -217,7 +217,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
 // Replaced LOGO URL with a component approach
 const AppLogo = () => (
     <div className="w-8 h-8 rounded bg-wood-600 flex items-center justify-center text-white shrink-0 shadow-sm">
-        <Package size={18} strokeWidth={2.5} />
+        <TrendingUp size={18} strokeWidth={2.5} />
     </div>
 );
 
@@ -373,7 +373,7 @@ const MainLayout: React.FC = () => {
       <div className="md:hidden absolute top-0 left-0 right-0 h-16 bg-white border-b border-wood-200 flex items-center justify-between px-4 z-20">
         <div className="flex items-center gap-2 font-bold text-wood-800">
           <AppLogo />
-          <span>PROD. STATUS</span>
+          <span>OPS. HUB</span>
         </div>
         <button onClick={toggleMobileSidebar} className="p-2 text-slate-600 hover:bg-slate-100 rounded-md">
           {isMobileSidebarOpen ? <X /> : <Menu />}
@@ -394,9 +394,9 @@ const MainLayout: React.FC = () => {
       `}>
         {/* Sidebar Header */}
         <div className={`h-16 flex items-center bg-white border-b border-slate-200 transition-all duration-300 ${isCollapsed ? 'justify-center px-0' : 'justify-between px-4'}`}>
-          <div className={`flex items-center gap-3 font-bold text-slate-800 text-lg tracking-wide overflow-hidden whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0 hidden' : 'w-auto opacity-100'}`}>
+          <div className={`flex items-center gap-3 font-bold text-slate-800 text-base tracking-wide overflow-hidden whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0 hidden' : 'w-auto opacity-100'}`}>
             <AppLogo />
-            <span>PRODUCTION</span>
+            <span>Operations Hub</span>
           </div>
           <button onClick={toggleDesktopSidebar} className={`hidden md:flex p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors ${isCollapsed ? 'mx-auto' : ''}`}>
             <Menu size={20} />
