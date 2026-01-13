@@ -416,6 +416,9 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [projectMetric, setProjectMetric] = useState<MetricType>('SUM_GT_DON_HANG');
   const [chartMetric, setChartMetric] = useState<MetricType>('SUM_GT_DON_HANG');
 
+  // NEW: Project Status Summary Metric (Value vs Count)
+  const [projectSummaryMetric, setProjectSummaryMetric] = useState<'VALUE' | 'COUNT'>('VALUE');
+
   const [matStatusMetric, setMatStatusMetric] = useState<'COUNT_PR' | 'SUM_QTY'>('COUNT_PR');
 
   const [excludeFabrics, setExcludeFabrics] = useState(false);
@@ -497,7 +500,29 @@ const Dashboard: React.FC<DashboardProps> = ({
   // Init Unified Date Filter
   useEffect(() => {
     if (!hasInitializedOverviewDate.current && unifiedDateOptions.length > 0) {
-        setOverviewDateFilters([unifiedDateOptions[0]]);
+        // Logic: Set default to Yesterday (Current Date - 1)
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        
+        const dd = String(yesterday.getDate()).padStart(2, '0');
+        const mm = String(yesterday.getMonth() + 1).padStart(2, '0');
+        const yyyy = yesterday.getFullYear();
+        
+        const yesterdayStrSlash = `${dd}/${mm}/${yyyy}`; // DD/MM/YYYY
+        const yesterdayStrDash = `${dd}-${mm}-${yyyy}`;   // DD-MM-YYYY
+
+        // Check if yesterday exists in options
+        const targetDate = unifiedDateOptions.find(opt => 
+            opt === yesterdayStrSlash || opt === yesterdayStrDash
+        );
+
+        if (targetDate) {
+            setOverviewDateFilters([targetDate]);
+        } else {
+            // Fallback to latest available if yesterday has no data
+            setOverviewDateFilters([unifiedDateOptions[0]]);
+        }
+
         hasInitializedOverviewDate.current = true;
     }
   }, [unifiedDateOptions]);
@@ -884,22 +909,57 @@ const Dashboard: React.FC<DashboardProps> = ({
   const projectStatusSummary = useMemo(() => {
       if (!congTrinhKey || !triGiaDonHangTongKey) return [];
       const agg: Record<string, { totalOrder: number; deployed: number; ticketed: number; inProduction: number; inventory: number; }> = {};
+      
+      const isCount = projectSummaryMetric === 'COUNT';
+
       filteredProductionData.forEach(row => {
           const ctName = String(row[congTrinhKey] || '').trim();
           if (!ctName) return;
           if (!agg[ctName]) agg[ctName] = { totalOrder: 0, deployed: 0, ticketed: 0, inProduction: 0, inventory: 0 };
           const status = String(row[tinhTrangKey] || '').toUpperCase();
-          const totalOrderVal = parseNumber(row[triGiaDonHangTongKey]) / 1000;
-          const ticketVal = parseNumber(row[thanhTienTinhPhieuKey]) / 1000;
-          const inventoryVal = parseNumber(row[thanhTienNhapKhoKey]) / 1000;
+          
+          // Original Value Logic
+          const totalOrderValRaw = parseNumber(row[triGiaDonHangTongKey]);
+          const ticketValRaw = parseNumber(row[thanhTienTinhPhieuKey]);
+          const inventoryValRaw = parseNumber(row[thanhTienNhapKhoKey]);
+
+          // Normalized for Value mode (1000s)
+          const totalOrderVal = isCount ? 1 : (totalOrderValRaw / 1000);
+          
+          // Logic mapping for COUNT mode vs VALUE mode
+          // For Count: 1 per row if condition met.
+          // For Value: Sum of amount if condition met.
+          
+          // 1. Total Order
           agg[ctName].totalOrder += totalOrderVal;
-          if (!status.includes('15. CHƯA TRIỂN KHAI')) agg[ctName].deployed += totalOrderVal;
-          if (!status.includes('15. CHƯA TRIỂN KHAI') && !status.includes('14. CHƯA PHIẾU')) agg[ctName].ticketed += ticketVal;
-          if (!status.includes('15. CHƯA TRIỂN KHAI') && !status.includes('14. CHƯA PHIẾU') && !status.includes('11. CHƯA SX')) agg[ctName].inProduction += ticketVal;
-          agg[ctName].inventory += inventoryVal;
+
+          // 2. Deployed (If not 'CHUA TRIEN KHAI')
+          if (!status.includes('15. CHƯA TRIỂN KHAI')) {
+              agg[ctName].deployed += totalOrderVal;
+          }
+
+          // 3. Ticketed (If not 'CHUA PHIEU' and not 'CHUA TRIEN KHAI')
+          // Count Mode: If ticketValRaw > 0, we count it as 1. If 0, maybe not ticketed yet or data missing? 
+          // Assuming checking status excludes non-ticketed, but verifying value > 0 helps accuracy for "Da Tinh Phieu".
+          const valToAddTicket = isCount ? (ticketValRaw > 0 ? 1 : 0) : (ticketValRaw / 1000);
+          
+          if (!status.includes('15. CHƯA TRIỂN KHAI') && !status.includes('14. CHƯA PHIẾU')) {
+              agg[ctName].ticketed += valToAddTicket;
+          }
+
+          // 4. In Production (Active manufacturing)
+          if (!status.includes('15. CHƯA TRIỂN KHAI') && !status.includes('14. CHƯA PHIẾU') && !status.includes('11. CHƯA SX')) {
+               // In value mode, we used ticketVal as proxy for "Value in Production".
+               // In count mode, we use same proxy: valToAddTicket (1 item).
+               agg[ctName].inProduction += valToAddTicket;
+          }
+
+          // 5. Inventory
+          const valToAddInventory = isCount ? (inventoryValRaw > 0 ? 1 : 0) : (inventoryValRaw / 1000);
+          agg[ctName].inventory += valToAddInventory;
       });
       return Object.entries(agg).map(([name, data]) => ({ name, ...data, remaining: data.totalOrder - data.inventory, notDeployed: data.totalOrder - data.deployed, percentComplete: data.totalOrder > 0 ? (data.inventory / data.totalOrder) * 100 : 0 })).sort((a, b) => b.totalOrder - a.totalOrder);
-  }, [filteredProductionData, congTrinhKey, tinhTrangKey, triGiaDonHangTongKey, thanhTienTinhPhieuKey, thanhTienNhapKhoKey]);
+  }, [filteredProductionData, congTrinhKey, tinhTrangKey, triGiaDonHangTongKey, thanhTienTinhPhieuKey, thanhTienNhapKhoKey, projectSummaryMetric]);
 
   const pivotWorkshopData = useMemo<WorkshopPivotData | null>(() => {
     if (!tinhTrangKey || !xuongKey) return null;
@@ -1495,7 +1555,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                     <div className="h-[350px] w-full bg-slate-50 rounded-lg border border-slate-100 p-3 relative group hover:shadow-md transition-shadow">
                         <div className="absolute top-3 left-4 text-xs font-bold text-slate-600 uppercase z-10 bg-white/80 px-2 py-1 rounded backdrop-blur-sm shadow-sm">SO SÁNH: KH vs TH (Theo Xưởng)</div>
                         <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={combinedWorkshopData as Record<string, any>[]} margin={{ top: 35, right: 30, left: 10, bottom: 50 }}>
+                          <BarChart data={combinedWorkshopData as any[]} margin={{ top: 35, right: 30, left: 10, bottom: 50 }}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} />
                             <XAxis dataKey="name" angle={-25} textAnchor="end" height={60} tick={{fontSize: 10}} interval={0}/>
                             <YAxis tickFormatter={formatDecimal} tick={{fontSize: 10}} width={45} domain={['auto', 'auto']} />
@@ -1509,7 +1569,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                     <div className="h-[350px] w-full bg-slate-50 rounded-lg border border-slate-100 p-3 relative group hover:shadow-md transition-shadow">
                         <div className="absolute top-3 left-4 text-xs font-bold text-slate-600 uppercase z-10 bg-white/80 px-2 py-1 rounded backdrop-blur-sm shadow-sm">SO SÁNH: KH vs TH (Theo Công Trình - Top 15)</div>
                         <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={combinedProjectData as Record<string, any>[]} margin={{ top: 35, right: 30, left: 10, bottom: 80 }}>
+                          <BarChart data={combinedProjectData as any[]} margin={{ top: 35, right: 30, left: 10, bottom: 80 }}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} />
                             <XAxis dataKey="code" angle={-45} textAnchor="end" height={80} tick={{fontSize: 10}} interval={0}/>
                             <YAxis tickFormatter={formatDecimal} tick={{fontSize: 10}} width={45} domain={['auto', 'auto']} />
@@ -1561,10 +1621,13 @@ const Dashboard: React.FC<DashboardProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {pivotWorkshopData.uniqueStatuses.map(s => (
+                    {pivotWorkshopData.uniqueStatuses.map((s: string) => (
                       <tr key={s} className="hover:bg-slate-50 transition-colors">
                         <td className="px-3 py-2 text-left font-medium text-slate-700 sticky left-0 bg-white hover:bg-slate-50 z-10 whitespace-nowrap border-r border-slate-100">{s}</td>
-                        {pivotWorkshopData.uniqueWorkshops.map(w => { const val = pivotWorkshopData.matrix[s]?.[w] || 0; return (<td key={w} className={`px-3 py-2 whitespace-nowrap ${val === 0 ? 'text-slate-300' : 'text-slate-600'}`}>{val === 0 ? '-' : formatNumber(val, workshopMetric)}</td>); })}
+                        {pivotWorkshopData.uniqueWorkshops.map((w: string) => { 
+                            const val = pivotWorkshopData.matrix[s as string]?.[w as string] || 0; 
+                            return (<td key={w} className={`px-3 py-2 whitespace-nowrap ${val === 0 ? 'text-slate-300' : 'text-slate-600'}`}>{val === 0 ? '-' : formatNumber(val, workshopMetric)}</td>); 
+                        })}
                         <td className="px-3 py-2 font-bold text-slate-800 bg-wood-50/50">{formatNumber(pivotWorkshopData.rowTotals[s], workshopMetric)}</td>
                       </tr>
                     ))}
@@ -1584,7 +1647,14 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div ref={projectSummaryRef} className="scroll-mt-24 w-full bg-white p-5 rounded-xl shadow-sm border border-emerald-100 flex flex-col">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
                <h3 className="text-base font-semibold text-slate-700 flex items-center gap-2"><Activity className="w-4 h-4 text-emerald-600"/>Tình trạng đơn hàng theo Công trình</h3>
-               <span className="text-xs text-slate-500 italic">Đơn vị: 1,000 VNĐ</span>
+               <div className="flex items-center gap-3">
+                  <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200">
+                     <button onClick={() => setProjectSummaryMetric('COUNT')} className={`px-2 py-1 text-[10px] font-bold rounded flex items-center gap-1 transition-all ${projectSummaryMetric === 'COUNT' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}><Hash size={12}/> # Số lượng hạng mục</button>
+                     <div className="w-px h-3 bg-slate-300 mx-1"></div>
+                     <button onClick={() => setProjectSummaryMetric('VALUE')} className={`px-2 py-1 text-[10px] font-bold rounded flex items-center gap-1 transition-all ${projectSummaryMetric === 'VALUE' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}><DollarSign size={12}/> # Giá trị</button>
+                  </div>
+                  <span className="text-xs text-slate-500 italic hidden sm:block">Đơn vị: {projectSummaryMetric === 'COUNT' ? 'Hạng mục (Items)' : '1,000 VNĐ'}</span>
+               </div>
             </div>
             {projectStatusSummary.length > 0 ? (
                 <div className="overflow-auto custom-scrollbar border border-slate-200 rounded-lg max-h-[600px]">
@@ -1592,43 +1662,45 @@ const Dashboard: React.FC<DashboardProps> = ({
                         <thead className="bg-emerald-100/50 text-slate-800 font-bold uppercase tracking-tight">
                             <tr>
                                 <th className="px-3 py-3 text-left sticky left-0 top-0 bg-emerald-100 border-b border-emerald-200 z-30 min-w-[220px] shadow-sm">Tên Công Trình</th>
-                                <th className="px-3 py-3 border-b border-emerald-200 sticky top-0 bg-emerald-50 z-20">Tổng Giá Trị <br/>Đơn Hàng</th>
+                                <th className="px-3 py-3 border-b border-emerald-200 sticky top-0 bg-emerald-50 z-20">Tổng {projectSummaryMetric === 'VALUE' ? 'Giá Trị' : 'Số Lượng'} <br/>Đơn Hàng</th>
                                 <th className="px-3 py-3 border-b border-emerald-200 sticky top-0 bg-emerald-50 z-20">Đã Triển Khai <br/>Sản Xuất</th>
                                 <th className="px-3 py-3 border-b border-emerald-200 sticky top-0 bg-emerald-50 z-20">Đã Tính Phiếu</th>
                                 <th className="px-3 py-3 border-b border-emerald-200 sticky top-0 bg-emerald-50 z-20">Đang Sản Xuất</th>
-                                <th className="px-3 py-3 border-b border-emerald-200 sticky top-0 bg-emerald-50 z-20">Giá Trị <br/>Đã Nhập Kho</th>
-                                <th className="px-3 py-3 border-b border-emerald-200 sticky top-0 bg-emerald-50 z-20 font-extrabold text-slate-900">Giá Trị Còn Lại</th>
+                                <th className="px-3 py-3 border-b border-emerald-200 sticky top-0 bg-emerald-50 z-20">{projectSummaryMetric === 'VALUE' ? 'Giá Trị' : 'SL'} <br/>Đã Nhập Kho</th>
+                                <th className="px-3 py-3 border-b border-emerald-200 sticky top-0 bg-emerald-50 z-20 font-extrabold text-slate-900">{projectSummaryMetric === 'VALUE' ? 'Giá Trị' : 'SL'} Còn Lại</th>
                                 <th className="px-3 py-3 border-b border-emerald-200 sticky top-0 bg-emerald-50 z-20 text-slate-500">Chưa Triển Khai <br/>Sản Xuất</th>
                                 <th className="px-3 py-3 border-b border-emerald-200 sticky top-0 bg-emerald-50 z-20 text-center min-w-[100px]">% Hoàn Thành</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-emerald-50">
-                            {projectStatusSummary.map((row, idx) => (
+                            {projectStatusSummary.map((row, idx) => {
+                                const formatter = projectSummaryMetric === 'COUNT' ? formatNumber : formatDecimal;
+                                return (
                                 <tr key={idx} className="hover:bg-slate-50 transition-colors group">
                                     <td className="px-3 py-2.5 text-left font-medium text-slate-700 sticky left-0 bg-white group-hover:bg-slate-50 z-10 border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{row.name}</td>
-                                    <td className="px-3 py-2.5 text-slate-800">{formatDecimal(row.totalOrder)}</td>
-                                    <td className="px-3 py-2.5 text-slate-600">{formatDecimal(row.deployed)}</td>
-                                    <td className="px-3 py-2.5 text-slate-600">{formatDecimal(row.ticketed)}</td>
-                                    <td className="px-3 py-2.5 text-slate-600">{formatDecimal(row.inProduction)}</td>
-                                    <td className="px-3 py-2.5 text-indigo-700 font-medium">{formatDecimal(row.inventory)}</td>
-                                    <td className="px-3 py-2.5 font-bold text-slate-900 bg-slate-50/50">{formatDecimal(row.remaining)}</td>
-                                    <td className="px-3 py-2.5 text-slate-400 italic">{formatDecimal(row.notDeployed)}</td>
+                                    <td className="px-3 py-2.5 text-slate-800">{formatter(row.totalOrder)}</td>
+                                    <td className="px-3 py-2.5 text-slate-600">{formatter(row.deployed)}</td>
+                                    <td className="px-3 py-2.5 text-slate-600">{formatter(row.ticketed)}</td>
+                                    <td className="px-3 py-2.5 text-slate-600">{formatter(row.inProduction)}</td>
+                                    <td className="px-3 py-2.5 text-indigo-700 font-medium">{formatter(row.inventory)}</td>
+                                    <td className="px-3 py-2.5 font-bold text-slate-900 bg-slate-50/50">{formatter(row.remaining)}</td>
+                                    <td className="px-3 py-2.5 text-slate-400 italic">{formatter(row.notDeployed)}</td>
                                     <td className="px-2 py-2.5 text-center">
                                         <div className={`px-2 py-1 rounded font-bold text-[10px] inline-block w-full text-center ${row.percentComplete >= 95 ? 'bg-green-50 text-white' : row.percentComplete >= 70 ? 'bg-green-100 text-green-700' : row.percentComplete >= 40 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>{formatDecimal(row.percentComplete)}%</div>
                                     </td>
                                 </tr>
-                            ))}
+                            )})}
                         </tbody>
                         <tfoot className="bg-emerald-50 font-bold text-slate-800 border-t border-emerald-300 sticky bottom-0 z-20">
                             <tr>
                                 <td className="px-3 py-3 text-left sticky left-0 bg-emerald-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">TỔNG CỘNG</td>
-                                <td className="px-3 py-3">{formatDecimal(projectStatusSummary.reduce((a,b) => a + b.totalOrder, 0))}</td>
-                                <td className="px-3 py-3">{formatDecimal(projectStatusSummary.reduce((a,b) => a + b.deployed, 0))}</td>
-                                <td className="px-3 py-3">{formatDecimal(projectStatusSummary.reduce((a,b) => a + b.ticketed, 0))}</td>
-                                <td className="px-3 py-3">{formatDecimal(projectStatusSummary.reduce((a,b) => a + b.inProduction, 0))}</td>
-                                <td className="px-3 py-3 text-indigo-800">{formatDecimal(projectStatusSummary.reduce((a,b) => a + b.inventory, 0))}</td>
-                                <td className="px-3 py-3 text-slate-900">{formatDecimal(projectStatusSummary.reduce((a,b) => a + b.remaining, 0))}</td>
-                                <td className="px-3 py-3 text-slate-500">{formatDecimal(projectStatusSummary.reduce((a,b) => a + b.notDeployed, 0))}</td>
+                                <td className="px-3 py-3">{projectSummaryMetric === 'COUNT' ? formatNumber(projectStatusSummary.reduce((a,b) => a + b.totalOrder, 0)) : formatDecimal(projectStatusSummary.reduce((a,b) => a + b.totalOrder, 0))}</td>
+                                <td className="px-3 py-3">{projectSummaryMetric === 'COUNT' ? formatNumber(projectStatusSummary.reduce((a,b) => a + b.deployed, 0)) : formatDecimal(projectStatusSummary.reduce((a,b) => a + b.deployed, 0))}</td>
+                                <td className="px-3 py-3">{projectSummaryMetric === 'COUNT' ? formatNumber(projectStatusSummary.reduce((a,b) => a + b.ticketed, 0)) : formatDecimal(projectStatusSummary.reduce((a,b) => a + b.ticketed, 0))}</td>
+                                <td className="px-3 py-3">{projectSummaryMetric === 'COUNT' ? formatNumber(projectStatusSummary.reduce((a,b) => a + b.inProduction, 0)) : formatDecimal(projectStatusSummary.reduce((a,b) => a + b.inProduction, 0))}</td>
+                                <td className="px-3 py-3 text-indigo-800">{projectSummaryMetric === 'COUNT' ? formatNumber(projectStatusSummary.reduce((a,b) => a + b.inventory, 0)) : formatDecimal(projectStatusSummary.reduce((a,b) => a + b.inventory, 0))}</td>
+                                <td className="px-3 py-3 text-slate-900">{projectSummaryMetric === 'COUNT' ? formatNumber(projectStatusSummary.reduce((a,b) => a + b.remaining, 0)) : formatDecimal(projectStatusSummary.reduce((a,b) => a + b.remaining, 0))}</td>
+                                <td className="px-3 py-3 text-slate-500">{projectSummaryMetric === 'COUNT' ? formatNumber(projectStatusSummary.reduce((a,b) => a + b.notDeployed, 0)) : formatDecimal(projectStatusSummary.reduce((a,b) => a + b.notDeployed, 0))}</td>
                                 <td className="px-3 py-3"></td>
                             </tr>
                         </tfoot>
@@ -1659,10 +1731,13 @@ const Dashboard: React.FC<DashboardProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {pivotProjectData.uniqueProjects.map(p => (
+                    {pivotProjectData.uniqueProjects.map((p: string) => (
                       <tr key={p} className="hover:bg-slate-50 transition-colors group">
                         <td className="px-3 py-2 text-left font-medium text-slate-700 sticky left-0 bg-white group-hover:bg-slate-50 z-10 whitespace-nowrap border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{p}</td>
-                        {pivotProjectData.uniqueStatuses.map(s => { const val = pivotProjectData.matrix[p]?.[s] || 0; return (<td key={s} className={`px-3 py-2 whitespace-nowrap ${val === 0 ? 'text-slate-300' : 'text-slate-600'}`}>{val === 0 ? '-' : formatNumber(val, projectMetric)}</td>); })}
+                        {pivotProjectData.uniqueStatuses.map((s: string) => { 
+                            const val = pivotProjectData.matrix[p]?.[s as string] || 0; 
+                            return (<td key={s} className={`px-3 py-2 whitespace-nowrap ${val === 0 ? 'text-slate-300' : 'text-slate-600'}`}>{val === 0 ? '-' : formatNumber(val, projectMetric)}</td>); 
+                        })}
                         <td className="px-3 py-2 font-bold text-slate-800 bg-blue-50/30">{formatNumber(pivotProjectData.rowTotals[p], projectMetric)}</td>
                       </tr>
                     ))}
@@ -1743,10 +1818,13 @@ const Dashboard: React.FC<DashboardProps> = ({
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {pivotMaterialStatusData.sortedGroups.map(group => (
+                            {pivotMaterialStatusData.sortedGroups.map((group: string) => (
                                 <tr key={group} className="hover:bg-slate-50 transition-colors group">
                                     <td className="px-3 py-2 text-left font-medium text-slate-700 sticky left-0 bg-white group-hover:bg-slate-50 z-10 whitespace-nowrap border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{group}</td>
-                                    {pivotMaterialStatusData.uniqueStatuses.map(s => { const val = pivotMaterialStatusData.matrix[group]?.[s] || 0; return (<td key={s} className={`px-3 py-2 whitespace-nowrap ${val === 0 ? 'text-slate-300' : 'text-slate-600'}`}>{val === 0 ? '-' : (matStatusMetric === 'SUM_QTY' ? formatDecimal(val) : formatNumber(val))}</td>); })}
+                                    {pivotMaterialStatusData.uniqueStatuses.map((s: string) => { 
+                                        const val = pivotMaterialStatusData.matrix[group]?.[s as string] || 0; 
+                                        return (<td key={s} className={`px-3 py-2 whitespace-nowrap ${val === 0 ? 'text-slate-300' : 'text-slate-600'}`}>{val === 0 ? '-' : (matStatusMetric === 'SUM_QTY' ? formatDecimal(val) : formatNumber(val))}</td>); 
+                                    })}
                                     <td className="px-3 py-2 font-bold text-slate-800 bg-emerald-50/30">{matStatusMetric === 'SUM_QTY' ? formatDecimal(pivotMaterialStatusData.rowTotals[group]) : formatNumber(pivotMaterialStatusData.rowTotals[group])}</td>
                                 </tr>
                             ))}
