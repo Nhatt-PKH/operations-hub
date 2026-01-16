@@ -502,7 +502,7 @@ const DataGrid: React.FC<DataGridProps> = ({
                     <ExcelColumnFilter 
                         label={header}
                         options={options}
-                        selectedValues={advancedFilters[header] || []}
+                        selectedValues={advancedFilters[header] || ([] as string[])}
                         onChange={(vals) => setAdvancedFilters(prev => ({ ...prev, [header]: vals }))}
                     />
                 </div>

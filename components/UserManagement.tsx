@@ -1,8 +1,33 @@
 import React, { useEffect, useState } from 'react';
 import { User, APP_VIEWS } from '../types';
 import { userService } from '../services/userService';
-import { Plus, Edit2, Trash2, Shield, X, Check, Search, RefreshCw, Loader, Mail, Briefcase, FileText, CheckSquare, Square, Crown, User as UserIcon } from 'lucide-react';
+import { Plus, Edit2, Trash2, Shield, X, Check, Search, RefreshCw, Loader, Mail, Briefcase, FileText, CheckSquare, Square, Crown, User as UserIcon, CornerDownRight } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
+
+// --- CẤU HÌNH SECTION PHÂN QUYỀN ---
+// Định nghĩa các khu vực con (Section) nằm trong các View cha
+const VIEW_SECTIONS: Record<string, { id: string; label: string }[]> = {
+  dashboard: [
+    { id: 'dashboard_overview', label: 'Báo cáo Tổng quan' },
+    { id: 'dashboard_financial', label: 'Số liệu Tài chính' },
+    { id: 'dashboard_bottleneck', label: 'Báo cáo Điểm nghẽn' }
+  ],
+  production: [
+    { id: 'production_edit', label: 'Chỉnh sửa dữ liệu' },
+    { id: 'production_export', label: 'Xuất Excel' }
+  ],
+  orders: [
+    { id: 'orders_import', label: 'Import Dữ liệu' },
+    { id: 'orders_view_price', label: 'Xem Giá trị Đơn hàng' }
+  ],
+  materials: [
+    { id: 'materials_view_price', label: 'Xem Giá/NCC' },
+    { id: 'materials_edit', label: 'Cập nhật trạng thái' }
+  ],
+  inventory: [
+    { id: 'inventory_edit', label: 'Điều chỉnh kho' }
+  ]
+};
 
 const UserManagement: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
@@ -67,20 +92,47 @@ const UserManagement: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const togglePermission = (viewId: string) => {
+  const togglePermission = (id: string) => {
     const currentPerms = formData.permissions || [];
-    if (currentPerms.includes(viewId)) {
-        setFormData({ ...formData, permissions: currentPerms.filter(p => p !== viewId) });
+    let newPerms: string[] = [];
+
+    if (currentPerms.includes(id)) {
+      // Logic: Nếu bỏ chọn View cha, bỏ luôn các Section con của nó (nếu có)
+      newPerms = currentPerms.filter(p => p !== id);
+      
+      // Kiểm tra xem ID vừa bỏ có phải là View cha không
+      if (VIEW_SECTIONS[id]) {
+        const childIds = VIEW_SECTIONS[id].map(s => s.id);
+        newPerms = newPerms.filter(p => !childIds.includes(p));
+      }
     } else {
-        setFormData({ ...formData, permissions: [...currentPerms, viewId] });
+      // Logic: Chọn bình thường
+      newPerms = [...currentPerms, id];
+      
+      // Optional: Nếu chọn Section con, tự động chọn View cha (nếu chưa chọn)
+      // Tìm xem id này có thuộc view nào không
+      const parentView = Object.keys(VIEW_SECTIONS).find(vId => 
+        VIEW_SECTIONS[vId].some(s => s.id === id)
+      );
+      if (parentView && !newPerms.includes(parentView)) {
+        newPerms.push(parentView);
+      }
     }
+    
+    setFormData({ ...formData, permissions: newPerms });
   };
 
   const toggleAllPermissions = () => {
-    const allIds = APP_VIEWS.map(v => v.id);
-    if ((formData.permissions || []).length === allIds.length) {
+    const allViewIds = APP_VIEWS.map(v => v.id);
+    // Lấy tất cả section IDs
+    const allSectionIds = Object.values(VIEW_SECTIONS).flatMap(secs => secs.map(s => s.id));
+    const allIds = [...allViewIds, ...allSectionIds];
+
+    if ((formData.permissions || []).length >= allViewIds.length) {
+        // Nếu đã chọn nhiều rồi thì xóa hết
         setFormData({ ...formData, permissions: [] });
     } else {
+        // Chọn tất cả (Full quyền)
         setFormData({ ...formData, permissions: allIds });
     }
   };
@@ -169,7 +221,7 @@ const UserManagement: React.FC = () => {
           <input 
             type="text" 
             placeholder="Tìm kiếm: Tên, Username, MSNV..." 
-            className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-wood-400"
+            className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-wood-400 bg-white text-slate-900 placeholder-slate-400"
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
           />
@@ -245,11 +297,15 @@ const UserManagement: React.FC = () => {
                           <span className="text-xs text-purple-600 italic">Full Access</span>
                       ) : (
                           <div className="flex flex-wrap gap-1">
-                            {user.permissions.map(perm => (
+                            {user.permissions
+                              // Chỉ hiển thị các View ID chính để danh sách gọn gàng, Section con ẩn đi hoặc hiển thị tooltip nếu cần
+                              .filter(p => APP_VIEWS.some(v => v.id === p))
+                              .map(perm => (
                                 <span key={perm} className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] border border-slate-200">
                                     {APP_VIEWS.find(v => v.id === perm)?.label || perm}
                                 </span>
                             ))}
+                            {user.permissions.length > 5 && <span className="text-[10px] text-slate-400">...</span>}
                           </div>
                       )}
                     </td>
@@ -310,7 +366,7 @@ const UserManagement: React.FC = () => {
                     <label className="text-xs font-bold text-slate-500">Tên đăng nhập <span className="text-red-500">*</span></label>
                     <input 
                       type="text" 
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-wood-500/20 focus:border-wood-500 outline-none disabled:bg-slate-100"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-wood-500/20 focus:border-wood-500 outline-none bg-white text-slate-900 placeholder-slate-400 disabled:bg-slate-100 disabled:text-slate-500"
                       value={formData.username}
                       onChange={e => setFormData({...formData, username: e.target.value})}
                       disabled={!!editingUser} 
@@ -321,7 +377,7 @@ const UserManagement: React.FC = () => {
                     <label className="text-xs font-bold text-slate-500">Mật khẩu {editingUser && '(để trống nếu không đổi)'} {!editingUser && <span className="text-red-500">*</span>}</label>
                     <input 
                       type="password" 
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-wood-500/20 focus:border-wood-500 outline-none"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-wood-500/20 focus:border-wood-500 outline-none bg-white text-slate-900 placeholder-slate-400"
                       value={formData.password}
                       onChange={e => setFormData({...formData, password: e.target.value})}
                     />
@@ -331,7 +387,7 @@ const UserManagement: React.FC = () => {
                     <label className="text-xs font-bold text-slate-500">Họ và Tên <span className="text-red-500">*</span></label>
                     <input 
                       type="text" 
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-wood-500/20 focus:border-wood-500 outline-none"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-wood-500/20 focus:border-wood-500 outline-none bg-white text-slate-900 placeholder-slate-400"
                       value={formData.fullName}
                       onChange={e => setFormData({...formData, fullName: e.target.value})}
                     />
@@ -340,7 +396,7 @@ const UserManagement: React.FC = () => {
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-500">Vai trò</label>
                     <select 
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-wood-500/20 focus:border-wood-500 outline-none bg-white"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-wood-500/20 focus:border-wood-500 outline-none bg-white text-slate-900 placeholder-slate-400"
                       value={formData.role}
                       onChange={e => setFormData({...formData, role: e.target.value as 'ADMIN' | 'USER'})}
                     >
@@ -353,7 +409,7 @@ const UserManagement: React.FC = () => {
                     <label className="text-xs font-bold text-slate-500">Mã NV (MSNV)</label>
                     <input 
                       type="text" 
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-wood-500/20 focus:border-wood-500 outline-none"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-wood-500/20 focus:border-wood-500 outline-none bg-white text-slate-900 placeholder-slate-400"
                       value={formData.msnv || ''}
                       onChange={e => setFormData({...formData, msnv: e.target.value})}
                     />
@@ -363,7 +419,7 @@ const UserManagement: React.FC = () => {
                     <label className="text-xs font-bold text-slate-500">Email (Để khôi phục MK)</label>
                     <input 
                       type="email" 
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-wood-500/20 focus:border-wood-500 outline-none"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-wood-500/20 focus:border-wood-500 outline-none bg-white text-slate-900 placeholder-slate-400"
                       value={formData.email || ''}
                       onChange={e => setFormData({...formData, email: e.target.value})}
                     />
@@ -373,7 +429,7 @@ const UserManagement: React.FC = () => {
                     <label className="text-xs font-bold text-slate-500">Phòng ban</label>
                     <input 
                       type="text" 
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-wood-500/20 focus:border-wood-500 outline-none"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-wood-500/20 focus:border-wood-500 outline-none bg-white text-slate-900 placeholder-slate-400"
                       value={formData.department || ''}
                       onChange={e => setFormData({...formData, department: e.target.value})}
                     />
@@ -382,7 +438,7 @@ const UserManagement: React.FC = () => {
                   <div className="space-y-1 md:col-span-2">
                     <label className="text-xs font-bold text-slate-500">Ghi chú</label>
                     <textarea 
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-wood-500/20 focus:border-wood-500 outline-none resize-none h-16"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-wood-500/20 focus:border-wood-500 outline-none resize-none h-16 bg-white text-slate-900 placeholder-slate-400"
                       value={formData.note || ''}
                       onChange={e => setFormData({...formData, note: e.target.value})}
                     />
@@ -391,7 +447,7 @@ const UserManagement: React.FC = () => {
                   {/* Permissions Section - Only show if USER */}
                   <div className="md:col-span-2 mt-4 relative">
                       <div className="flex justify-between items-end border-b border-slate-100 pb-1 mb-2">
-                         <div className="text-xs font-bold text-wood-600 uppercase">Phân quyền Truy cập View</div>
+                         <div className="text-xs font-bold text-wood-600 uppercase">Phân quyền Truy cập View & Section</div>
                          {formData.role === 'USER' && (
                              <button 
                                 type="button" 
@@ -412,17 +468,44 @@ const UserManagement: React.FC = () => {
                           </div>
                       )}
 
-                      <div className={`grid grid-cols-2 gap-2 ${formData.role === 'ADMIN' ? 'opacity-30' : ''}`}>
+                      <div className={`grid grid-cols-2 gap-3 ${formData.role === 'ADMIN' ? 'opacity-30' : ''}`}>
                           {APP_VIEWS.map(view => {
-                              const isSelected = (formData.permissions || []).includes(view.id);
+                              const isViewSelected = (formData.permissions || []).includes(view.id);
+                              const hasSections = VIEW_SECTIONS[view.id] && VIEW_SECTIONS[view.id].length > 0;
+
                               return (
                                   <div 
                                     key={view.id}
-                                    onClick={() => formData.role === 'USER' && togglePermission(view.id)}
-                                    className={`flex items-center gap-2 p-2 rounded-lg border transition-all ${isSelected ? 'bg-wood-50 border-wood-200' : 'bg-white border-slate-200 hover:bg-slate-50'} ${formData.role === 'ADMIN' ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                                    className={`flex flex-col rounded-lg border transition-all ${isViewSelected ? 'bg-wood-50/50 border-wood-200' : 'bg-white border-slate-200'}`}
                                   >
-                                      {isSelected ? <CheckSquare size={18} className="text-wood-600" /> : <Square size={18} className="text-slate-300" />}
-                                      <span className={`text-sm ${isSelected ? 'font-medium text-wood-800' : 'text-slate-600'}`}>{view.label}</span>
+                                      {/* Parent View Checkbox */}
+                                      <div 
+                                        onClick={() => formData.role === 'USER' && togglePermission(view.id)}
+                                        className={`flex items-center gap-2 p-2 rounded-t-lg hover:bg-wood-50 cursor-pointer ${isViewSelected ? 'bg-wood-50' : ''}`}
+                                      >
+                                          {isViewSelected ? <CheckSquare size={18} className="text-wood-600 shrink-0" /> : <Square size={18} className="text-slate-300 shrink-0" />}
+                                          <span className={`text-sm ${isViewSelected ? 'font-bold text-wood-800' : 'text-slate-600'}`}>{view.label}</span>
+                                      </div>
+
+                                      {/* Nested Sections */}
+                                      {hasSections && isViewSelected && (
+                                          <div className="px-2 pb-2 pt-1 border-t border-wood-100/50 space-y-1">
+                                              {VIEW_SECTIONS[view.id].map(section => {
+                                                  const isSectionSelected = (formData.permissions || []).includes(section.id);
+                                                  return (
+                                                      <div 
+                                                        key={section.id}
+                                                        onClick={() => formData.role === 'USER' && togglePermission(section.id)}
+                                                        className="flex items-center gap-2 pl-6 py-1 cursor-pointer hover:bg-wood-100/50 rounded"
+                                                      >
+                                                          <CornerDownRight size={12} className="text-slate-400 shrink-0" />
+                                                          {isSectionSelected ? <CheckSquare size={14} className="text-indigo-600 shrink-0" /> : <Square size={14} className="text-slate-300 shrink-0" />}
+                                                          <span className={`text-xs ${isSectionSelected ? 'text-indigo-700 font-medium' : 'text-slate-500'}`}>{section.label}</span>
+                                                      </div>
+                                                  );
+                                              })}
+                                          </div>
+                                      )}
                                   </div>
                               );
                           })}

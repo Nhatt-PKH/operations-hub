@@ -3,7 +3,8 @@ import { DataRow, ColumnDefinition, TARGET_COLUMN_NAMES } from '../types';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, BarChart, Bar, LabelList
 } from 'recharts';
-import { CheckCircle, Filter, ChevronDown, XCircle as CloseIcon, Table as TableIcon, Layers, LayoutList, Calculator, Hash, Activity, Package, MinusCircle, Box, ChevronLeft, ChevronRight, CheckSquare, Square, Calendar, DollarSign, ListFilter, Import, BarChart2, PieChart, TrendingUp, AlertCircle, ShoppingCart, FileText, ClipboardList, Clock, AlertTriangle } from 'lucide-react';
+import { CheckCircle, Filter, ChevronDown, XCircle as CloseIcon, Table as TableIcon, Layers, LayoutList, Calculator, Hash, Activity, Package, MinusCircle, Box, ChevronLeft, ChevronRight, CheckSquare, Square, Calendar, DollarSign, ListFilter, Import, BarChart2, PieChart, TrendingUp, AlertCircle, ShoppingCart, FileText, ClipboardList, Clock, AlertTriangle, Download } from 'lucide-react';
+import { exportToCSV } from '../services/dataService';
 
 interface DashboardProps {
   productionData: DataRow[];
@@ -110,7 +111,7 @@ const MATERIAL_LIST_COLUMNS = [
   TARGET_COLUMN_NAMES.TEAM_PR_NOTE,
   TARGET_COLUMN_NAMES.STATUS_PO,
   TARGET_COLUMN_NAMES.NOTE_PO,
-  TARGET_COLUMN_NAMES.PR_LINE_COMBINED,
+  TARGET_COLUMN_NAMES.PR_ITEM,
   TARGET_COLUMN_NAMES.ACTUAL_DATE,
   TARGET_COLUMN_NAMES.ACTUAL_QTY,
   TARGET_COLUMN_NAMES.MATERIAL_CODE,
@@ -291,10 +292,11 @@ const Dashboard: React.FC<DashboardProps> = ({
   orderData, 
   orderColumns,
   tkbvData, 
-  tkbvColumns,
+  tkbvColumns, 
   pthspData, 
   pthspColumns
 }) => {
+  const productionStatusRef = useRef<HTMLDivElement>(null); // New Parent Ref
   const pivotWorkshopRef = useRef<HTMLDivElement>(null);
   const pivotProjectRef = useRef<HTMLDivElement>(null);
   const pivotMaterialRef = useRef<HTMLDivElement>(null);
@@ -341,7 +343,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const matStatusSapKey = findColumnKey(materialColumns, TARGET_COLUMN_NAMES.STATUS_SAP);
   
   const matEstDateKey = findColumnKey(materialColumns, TARGET_COLUMN_NAMES.EST_DELIVERY);
-  const matPrLineKey = findColumnKey(materialColumns, TARGET_COLUMN_NAMES.PR_LINE_COMBINED);
+  const matPrLineKey = findColumnKey(materialColumns, TARGET_COLUMN_NAMES.PR_ITEM);
 
   // KHSX Keys
   const khsxXuongKey = findColumnKey(khsxColumns, TARGET_COLUMN_NAMES.XUONG);
@@ -362,6 +364,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const invThangKey = findColumnKey(inventoryColumns, TARGET_COLUMN_NAMES.THANG);
   const invNgayKey = findColumnKey(inventoryColumns, TARGET_COLUMN_NAMES.NGAY);
   const invDateKey = findColumnKey(inventoryColumns, TARGET_COLUMN_NAMES.DATE);
+  const invHexKey = findColumnKey(inventoryColumns, TARGET_COLUMN_NAMES.HEX); // HEX KEY FOR INVENTORY
 
   // Order Keys
   const orderHexKey = findColumnKey(orderColumns, TARGET_COLUMN_NAMES.HEX);
@@ -371,10 +374,12 @@ const Dashboard: React.FC<DashboardProps> = ({
   // TKBV Keys
   const tkbvDateKey = findColumnKey(tkbvColumns, TARGET_COLUMN_NAMES.NGAY_NHAN);
   const tkbvValueKey = findColumnKey(tkbvColumns, TARGET_COLUMN_NAMES.TRI_GIA_DON_HANG_TONG); 
+  const tkbvHexKey = findColumnKey(tkbvColumns, TARGET_COLUMN_NAMES.HEX); // HEX KEY FOR TKBV
 
   // PTHSP Keys
   const pthspDateKey = findColumnKey(pthspColumns, TARGET_COLUMN_NAMES.NGAY_HOAN_THANH);
   const pthspValueKey = findColumnKey(pthspColumns, TARGET_COLUMN_NAMES.TRI_GIA_DON_HANG_TONG);
+  const pthspHexKey = findColumnKey(pthspColumns, TARGET_COLUMN_NAMES.HEX); // HEX KEY FOR PTHSP
 
   // Filters State
   const [filters, setFilters] = useState<{
@@ -496,6 +501,13 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   // Display Strings for Overview Header
   const overviewDateRangeDisplay = useMemo(() => getDateRangeDisplay(overviewDateFilters, unifiedDateOptions), [overviewDateFilters, unifiedDateOptions]);
+
+  // Helper for Displaying Context Text
+  const getContextLabel = () => {
+    if (overviewDateFilters.length === 0) return "Thống kê toàn bộ thời gian";
+    if (overviewDateFilters.length === 1) return `Thống kê số liệu trong ngày: ${overviewDateFilters[0]}`;
+    return `Thống kê số liệu: ${overviewDateRangeDisplay.replace(/[()]/g, '')}`;
+  };
 
   // Init Unified Date Filter
   useEffect(() => {
@@ -668,7 +680,65 @@ const Dashboard: React.FC<DashboardProps> = ({
     if(ref.current) ref.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
+  // --- Export Functions ---
+  const handleExportOverviewSummary = () => {
+    const summaryData = [
+      {
+        "Chỉ số": "Đơn hàng mới (IPO)",
+        "Số lượng (HEX)": monthlyOrderStats.count,
+        "Giá trị (VND)": monthlyOrderStats.value,
+        "Ghi chú": "Dựa trên dữ liệu Đơn hàng tổng"
+      },
+      {
+        "Chỉ số": "Đã triển khai BV",
+        "Số lượng (HEX)": monthlyTkbvStats.count,
+        "Giá trị (VND)": monthlyTkbvStats.value,
+        "Ghi chú": "Dựa trên dữ liệu TKBV"
+      },
+      {
+        "Chỉ số": "Đã tính phiếu",
+        "Số lượng (HEX)": monthlyPthspStats.count,
+        "Giá trị (VND)": monthlyPthspStats.value,
+        "Ghi chú": "Dựa trên dữ liệu PTHSP"
+      },
+      {
+        "Chỉ số": "Đã nhập kho",
+        "Số lượng (Items)": monthlyInventoryOverviewStats.count,
+        "Giá trị (VND)": monthlyInventoryOverviewStats.value,
+        "Ghi chú": "Dựa trên dữ liệu Nhập kho"
+      }
+    ];
+    
+    // Add context to filename
+    const dateStr = overviewDateFilters.length > 0 ? overviewDateFilters.join('_') : 'Toan_bo';
+    exportToCSV(summaryData, `Tong_Hop_Bao_Cao_${dateStr}`);
+  };
+
+  const handleExportProductionStatus = () => {
+    exportToCSV(filteredProductionData, `Tinh_Trang_San_Xuat_${new Date().toISOString().split('T')[0]}`);
+  };
+
+  const handleExportBottlenecks = () => {
+    // Exporting the summary data shown in the chart is clearer for "Bottleneck Report"
+    // Flattening the bottleneckData for CSV
+    const flatBottleneckData = bottleneckData.map(item => ({
+      "Công đoạn": item.name,
+      "< 3 Ngày": item['<3 NGÀY'] || 0,
+      "4-7 Ngày": item['4-7 NGÀY'] || 0,
+      "2 Tuần": item['2 tuần'] || 0,
+      "3 Tuần": item['3 tuần'] || 0,
+      "Trên 4 Tuần": item['Từ 4 tuần trở lên'] || 0
+    }));
+    exportToCSV(flatBottleneckData, `Bao_Cao_Diem_Nghen_${new Date().toISOString().split('T')[0]}`);
+  };
+
   // --- Calculations ---
+
+  const countUniqueHex = (data: DataRow[], key: string | undefined) => {
+    if (!key) return 0;
+    const unique = new Set(data.map(r => String(r[key] || '').trim()).filter(Boolean));
+    return unique.size;
+  };
 
   const orderCardValue = useMemo(() => {
       try {
@@ -680,27 +750,36 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   const tkbvCardValue = useMemo(() => {
       try {
-          if (overviewMetric === 'COUNT') return filteredTkbvData.length;
+          if (overviewMetric === 'COUNT') {
+              // UPDATED: Count Unique HEX for TKBV
+              return countUniqueHex(filteredTkbvData, tkbvHexKey);
+          }
           if (!tkbvValueKey) return 0;
           return filteredTkbvData.reduce((sum, row) => sum + (parseNumber(row[tkbvValueKey])), 0);
       } catch (err) { return 0; }
-  }, [filteredTkbvData, overviewMetric, tkbvValueKey]);
+  }, [filteredTkbvData, overviewMetric, tkbvValueKey, tkbvHexKey]);
 
   const pthspCardValue = useMemo(() => {
       try {
-          if (overviewMetric === 'COUNT') return filteredPthspData.length;
+          if (overviewMetric === 'COUNT') {
+              // UPDATED: Count Unique HEX for PTHSP
+              return countUniqueHex(filteredPthspData, pthspHexKey);
+          }
           if (!pthspValueKey) return 0;
-          return filteredPthspData.reduce((sum, row) => sum + (parseNumber(row[pthspValueKey]) / 1000), 0);
+          return filteredPthspData.reduce((sum, row) => sum + (parseNumber(row[pthspValueKey]) ), 0);
       } catch (err) { return 0; }
-  }, [filteredPthspData, overviewMetric, pthspValueKey]);
+  }, [filteredPthspData, overviewMetric, pthspValueKey, pthspHexKey]);
 
   const inventoryOverviewCardValue = useMemo(() => {
       try {
-          if (overviewMetric === 'COUNT') return filteredInventoryOverviewData.length;
+          if (overviewMetric === 'COUNT') {
+              // UPDATED: Count Unique HEX for Inventory
+              return countUniqueHex(filteredInventoryOverviewData, invHexKey);
+          }
           if (!invThanhTienKey) return 0;
-          return filteredInventoryOverviewData.reduce((sum, row) => sum + (parseNumber(row[invThanhTienKey]) / 1000), 0); 
+          return filteredInventoryOverviewData.reduce((sum, row) => sum + (parseNumber(row[invThanhTienKey])), 0); 
       } catch (err) { return 0; }
-  }, [filteredInventoryOverviewData, overviewMetric, invThanhTienKey]);
+  }, [filteredInventoryOverviewData, overviewMetric, invThanhTienKey, invHexKey]);
 
   const latestUnifiedDate = useMemo(() => {
         const datesToCheck = overviewDateFilters.length > 0 ? overviewDateFilters : unifiedDateOptions;
@@ -732,46 +811,55 @@ const Dashboard: React.FC<DashboardProps> = ({
         if (!latestUnifiedDate || !tkbvDateKey) return { count: 0, value: 0 };
         const tMonth = latestUnifiedDate.getMonth();
         const tYear = latestUnifiedDate.getFullYear();
-        let count = 0, value = 0;
-        tkbvData.forEach(row => {
-            const d = parseVNDate(String(row[tkbvDateKey] || ''));
-            if (d && d.getMonth() === tMonth && d.getFullYear() === tYear) {
-                count++;
-                if (tkbvValueKey) value += parseNumber(row[tkbvValueKey]);
-            }
+        
+        // Filter rows for the month
+        const monthRows = tkbvData.filter(row => {
+             const d = parseVNDate(String(row[tkbvDateKey] || ''));
+             return d && d.getMonth() === tMonth && d.getFullYear() === tYear;
         });
+
+        // Calculate
+        const count = countUniqueHex(monthRows, tkbvHexKey);
+        const value = tkbvValueKey ? monthRows.reduce((sum, row) => sum + parseNumber(row[tkbvValueKey]), 0) : 0;
+
         return { count, value };
-  }, [tkbvData, latestUnifiedDate, tkbvDateKey, tkbvValueKey]);
+  }, [tkbvData, latestUnifiedDate, tkbvDateKey, tkbvValueKey, tkbvHexKey]);
 
   const monthlyPthspStats = useMemo(() => {
         if (!latestUnifiedDate || !pthspDateKey) return { count: 0, value: 0 };
         const tMonth = latestUnifiedDate.getMonth();
         const tYear = latestUnifiedDate.getFullYear();
-        let count = 0, value = 0;
-        pthspData.forEach(row => {
+        
+        // Filter rows for the month
+        const monthRows = pthspData.filter(row => {
             const d = parseVNDate(String(row[pthspDateKey] || ''));
-            if (d && d.getMonth() === tMonth && d.getFullYear() === tYear) {
-                count++;
-                if (pthspValueKey) value += (parseNumber(row[pthspValueKey]) / 1000);
-            }
+            return d && d.getMonth() === tMonth && d.getFullYear() === tYear;
         });
+
+        // Calculate
+        const count = countUniqueHex(monthRows, pthspHexKey);
+        const value = pthspValueKey ? monthRows.reduce((sum, row) => sum + (parseNumber(row[pthspValueKey]) / 1000), 0) : 0;
+        
         return { count, value };
-  }, [pthspData, latestUnifiedDate, pthspDateKey, pthspValueKey]);
+  }, [pthspData, latestUnifiedDate, pthspDateKey, pthspValueKey, pthspHexKey]);
 
   const monthlyInventoryOverviewStats = useMemo(() => {
         if (!latestUnifiedDate || !invDateKey) return { count: 0, value: 0 };
         const tMonth = latestUnifiedDate.getMonth();
         const tYear = latestUnifiedDate.getFullYear();
-        let count = 0, value = 0;
-        inventoryData.forEach(row => {
+        
+        // Filter rows for the month
+        const monthRows = inventoryData.filter(row => {
             const d = parseVNDate(String(row[invDateKey] || ''));
-            if (d && d.getMonth() === tMonth && d.getFullYear() === tYear) {
-                count++;
-                if (invThanhTienKey) value += (parseNumber(row[invThanhTienKey]) / 1000);
-            }
+            return d && d.getMonth() === tMonth && d.getFullYear() === tYear;
         });
+
+        // Calculate
+        const count = countUniqueHex(monthRows, invHexKey);
+        const value = invThanhTienKey ? monthRows.reduce((sum, row) => sum + (parseNumber(row[invThanhTienKey]) / 1000), 0) : 0;
+
         return { count, value };
-  }, [inventoryData, latestUnifiedDate, invDateKey, invThanhTienKey]);
+  }, [inventoryData, latestUnifiedDate, invDateKey, invThanhTienKey, invHexKey]);
 
   const filteredKhsxData = useMemo(() => {
     return khsxData.filter(row => {
@@ -1147,16 +1235,16 @@ const Dashboard: React.FC<DashboardProps> = ({
              {/* Anchor Buttons */}
              <div className="flex gap-2">
                 <button onClick={() => scrollToRef(orderOverviewRef)} className="p-1.5 text-xs bg-white border border-slate-200 rounded hover:bg-wood-50 text-slate-600 flex items-center gap-1 shadow-sm" title="Đến Tổng quan Đơn hàng">
-                   <ShoppingCart size={14} className="text-pink-600"/> Đơn hàng
+                   <ShoppingCart size={14} className="text-pink-600"/> Tổng quan
+                </button>
+                <button onClick={() => scrollToRef(productionStatusRef)} className="p-1.5 text-xs bg-white border border-slate-200 rounded hover:bg-wood-50 text-slate-600 flex items-center gap-1 shadow-sm" title="Đến Tình trạng sản xuất">
+                   <CheckCircle size={14} className="text-emerald-600"/> Tình trạng sản xuất
                 </button>
                 <button onClick={() => scrollToRef(bottleneckSectionRef)} className="p-1.5 text-xs bg-white border border-slate-200 rounded hover:bg-wood-50 text-slate-600 flex items-center gap-1 shadow-sm" title="Đến Báo cáo Điểm nghẽn">
                    <AlertTriangle size={14} className="text-red-600"/> Điểm nghẽn
                 </button>
                 <button onClick={() => scrollToRef(khsxSectionRef)} className="p-1.5 text-xs bg-white border border-slate-200 rounded hover:bg-wood-50 text-slate-600 flex items-center gap-1 shadow-sm" title="Đến Kế hoạch & Nhập kho">
-                   <BarChart2 size={14} className="text-indigo-600"/> Kế hoạch
-                </button>
-                <button onClick={() => scrollToRef(projectSummaryRef)} className="p-1.5 text-xs bg-white border border-slate-200 rounded hover:bg-wood-50 text-slate-600 flex items-center gap-1 shadow-sm" title="Đến Tình trạng đơn hàng">
-                   <PieChart size={14} className="text-emerald-600"/> Tình trạng
+                   <BarChart2 size={14} className="text-indigo-600"/> Kế hoạch-Thực hiện
                 </button>
              </div>
           </div>
@@ -1218,9 +1306,10 @@ const Dashboard: React.FC<DashboardProps> = ({
             <div ref={orderOverviewRef} className="scroll-mt-24 w-full bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col">
                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                     <div>
-                       <h3 className="text-base font-semibold text-slate-700 flex items-center gap-2"><ShoppingCart className="w-4 h-4 text-pink-600"/>BÁO CÁO TỔNG QUAN</h3>
+                       <h3 className="text-lg font-semibold text-slate-700 flex items-center gap-2"><ShoppingCart className="w-4 h-4 text-pink-600"/>BÁO CÁO TỔNG QUAN</h3>
+                       <p className="text-xs font-medium text-slate-500 mt-1">{getContextLabel()}</p>
                        <div className="flex items-center gap-2 mt-1">
-                           <span className="text-xs text-slate-500">Dữ liệu từ nguồn Đơn hàng tổng & TKBV & PTHSP & Nhập Kho</span>
+                           <span className="text-[10px] text-slate-400">Dữ liệu từ nguồn Đơn hàng tổng & TKBV & PTHSP & Nhập Kho</span>
                        </div>
                     </div>
                     {/* Unified Date Filter Header with Global Metric Toggle */}
@@ -1244,6 +1333,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             selectedValues={overviewDateFilters} 
                             onChange={setOverviewDateFilters}
                         />
+                         <button onClick={handleExportOverviewSummary} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg border border-emerald-100 bg-white ml-2" title="Xuất Excel tổng hợp"><Download size={16} /></button>
                          {overviewDateFilters.length > 0 && (<button onClick={() => setOverviewDateFilters([])} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg border border-red-100 bg-white" title="Xóa lọc ngày"><CloseIcon size={16} /></button>)}
                     </div>
                  </div>
@@ -1256,19 +1346,31 @@ const Dashboard: React.FC<DashboardProps> = ({
                                   <div className="p-2 bg-pink-100 rounded-lg text-pink-600 shadow-sm group-hover:scale-110 transition-transform"><ShoppingCart size={20}/></div>
                                   <p className="text-sm font-bold text-pink-800 opacity-80 uppercase tracking-wide">1. Đơn hàng mới (IPO)</p>
                              </div>
-                             <div className="z-10 flex items-baseline gap-2">
-                                  <h4 className="text-4xl font-extrabold text-pink-600 tracking-tight">{overviewMetric === 'COUNT' ? orderCardValue.toLocaleString('en-US') : formatDecimal(orderCardValue)}</h4>
-                                  <span className="text-sm font-medium text-pink-400">{overviewMetric === 'COUNT' ? 'đơn hàng (HEX)' : 'đơn vị (1,000đ)'}</span>
+                             <div className="z-10 flex flex-col items-start">
+                                  <span className="text-[10px] font-bold text-pink-500 uppercase tracking-wider opacity-70 mb-1 block">Trong ngày</span>
+                                  <div className="flex items-baseline gap-2">
+                                      <h4 className="text-4xl font-extrabold text-pink-600 tracking-tight">
+                                        {overviewMetric === 'COUNT' 
+                                            ? orderCardValue.toLocaleString('en-US') 
+                                            : (orderCardValue / 1000).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 1 })}
+                                      </h4>
+                                      <span className="text-sm font-medium text-pink-400">
+                                        {overviewMetric === 'COUNT' ? 'đơn hàng (HEX)' : 'Tỷ đồng'}
+                                      </span>
+                                  </div>
                              </div>
                              {monthlyOrderStats.count > 0 && (
                                  <div className="z-10 mt-3 pt-3 border-t border-pink-200/60 w-full">
                                      <div className="flex justify-between items-center">
-                                         <span className="text-xs font-bold text-pink-800/70 uppercase">Lũy kế T{latestUnifiedDate?.getMonth()! + 1}:</span>
-                                         <span className="text-sm font-extrabold text-pink-700">{overviewMetric === 'COUNT' ? `${monthlyOrderStats.count.toLocaleString('en-US')} đơn` : formatDecimal(monthlyOrderStats.value)}</span>
+                                         <span className="text-lg font-bold text-pink-800 uppercase">Lũy kế T{latestUnifiedDate?.getMonth()! + 1}:</span>
+                                         <span className="text-3xl font-extrabold text-pink-700">
+                                            {overviewMetric === 'COUNT' 
+                                                ? `${monthlyOrderStats.count.toLocaleString('en-US')} đơn` 
+                                                : (monthlyOrderStats.value / 1000).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 1 }) + ' Tỷ'}
+                                         </span>
                                      </div>
                                  </div>
                              )}
-                             <div className="absolute right-0 bottom-0 opacity-10 transform translate-x-4 translate-y-4"><ShoppingCart size={100} className="text-pink-600"/></div>
                          </div>
                     </div>
 
@@ -1279,19 +1381,31 @@ const Dashboard: React.FC<DashboardProps> = ({
                                   <div className="p-2 bg-blue-100 rounded-lg text-blue-600 shadow-sm group-hover:scale-110 transition-transform"><FileText size={20}/></div>
                                   <p className="text-sm font-bold text-blue-800 opacity-80 uppercase tracking-wide">2. Đã Triển khai BV</p>
                              </div>
-                             <div className="z-10 flex items-baseline gap-2">
-                                  <h4 className="text-4xl font-extrabold text-blue-600 tracking-tight">{overviewMetric === 'COUNT' ? tkbvCardValue.toLocaleString('en-US') : formatDecimal(tkbvCardValue)}</h4>
-                                  <span className="text-sm font-medium text-blue-400">{overviewMetric === 'COUNT' ? 'bản vẽ (Items)' : 'đơn vị (1,000đ)'}</span>
+                             <div className="z-10 flex flex-col items-start">
+                                  <span className="text-[10px] font-bold text-blue-500 uppercase tracking-wider opacity-70 mb-1 block">Trong ngày</span>
+                                  <div className="flex items-baseline gap-2">
+                                      <h4 className="text-4xl font-extrabold text-blue-600 tracking-tight">
+                                        {overviewMetric === 'COUNT' 
+                                            ? tkbvCardValue.toLocaleString('en-US') 
+                                            : (tkbvCardValue / 1000).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 1 })}
+                                      </h4>
+                                      <span className="text-sm font-medium text-blue-400">
+                                        {overviewMetric === 'COUNT' ? 'bản vẽ (Items)' : 'Tỷ đồng'}
+                                      </span>
+                                  </div>
                              </div>
                              {monthlyTkbvStats.count > 0 && (
                                  <div className="z-10 mt-3 pt-3 border-t border-blue-200/60 w-full">
                                      <div className="flex justify-between items-center">
-                                         <span className="text-xs font-bold text-blue-800/70 uppercase">Lũy kế T{latestUnifiedDate?.getMonth()! + 1}:</span>
-                                         <span className="text-sm font-extrabold text-blue-700">{overviewMetric === 'COUNT' ? `${monthlyTkbvStats.count.toLocaleString('en-US')} bản vẽ` : formatDecimal(monthlyTkbvStats.value)}</span>
+                                         <span className="text-lg font-bold text-blue-800 uppercase">Lũy kế T{latestUnifiedDate?.getMonth()! + 1}:</span>
+                                         <span className="text-3xl font-extrabold text-blue-700">
+                                            {overviewMetric === 'COUNT' 
+                                                ? `${monthlyTkbvStats.count.toLocaleString('en-US')} bản vẽ` 
+                                                : (monthlyTkbvStats.value / 1000).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 1 }) + ' Tỷ'}
+                                         </span>
                                      </div>
                                  </div>
                              )}
-                             <div className="absolute right-0 bottom-0 opacity-10 transform translate-x-4 translate-y-4"><FileText size={100} className="text-blue-600"/></div>
                          </div>
                     </div>
 
@@ -1302,19 +1416,31 @@ const Dashboard: React.FC<DashboardProps> = ({
                                   <div className="p-2 bg-purple-100 rounded-lg text-purple-600 shadow-sm group-hover:scale-110 transition-transform"><ClipboardList size={20}/></div>
                                   <p className="text-sm font-bold text-purple-800 opacity-80 uppercase tracking-wide">3. Đã Tính phiếu</p>
                              </div>
-                             <div className="z-10 flex items-baseline gap-2">
-                                  <h4 className="text-4xl font-extrabold text-purple-600 tracking-tight">{overviewMetric === 'COUNT' ? pthspCardValue.toLocaleString('en-US') : formatDecimal(pthspCardValue)}</h4>
-                                  <span className="text-sm font-medium text-purple-400">{overviewMetric === 'COUNT' ? 'phiếu (Items)' : 'đơn vị (1,000đ)'}</span>
+                             <div className="z-10 flex flex-col items-start">
+                                  <span className="text-[10px] font-bold text-purple-500 uppercase tracking-wider opacity-70 mb-1 block">Trong ngày</span>
+                                  <div className="flex items-baseline gap-2">
+                                      <h4 className="text-4xl font-extrabold text-purple-600 tracking-tight">
+                                        {overviewMetric === 'COUNT' 
+                                            ? pthspCardValue.toLocaleString('en-US') 
+                                            : (pthspCardValue / 1000).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 1 })}
+                                      </h4>
+                                      <span className="text-sm font-medium text-purple-400">
+                                        {overviewMetric === 'COUNT' ? 'phiếu (Items)' : 'Tỷ đồng'}
+                                      </span>
+                                  </div>
                              </div>
                              {monthlyPthspStats.count > 0 && (
                                  <div className="z-10 mt-3 pt-3 border-t border-purple-200/60 w-full">
                                      <div className="flex justify-between items-center">
-                                         <span className="text-xs font-bold text-purple-800/70 uppercase">Lũy kế T{latestUnifiedDate?.getMonth()! + 1}:</span>
-                                         <span className="text-sm font-extrabold text-purple-700">{overviewMetric === 'COUNT' ? `${monthlyPthspStats.count.toLocaleString('en-US')} phiếu` : formatDecimal(monthlyPthspStats.value)}</span>
+                                         <span className="text-lg font-bold text-purple-800 uppercase">Lũy kế T{latestUnifiedDate?.getMonth()! + 1}:</span>
+                                         <span className="text-3xl font-extrabold text-purple-700">
+                                            {overviewMetric === 'COUNT' 
+                                                ? `${monthlyPthspStats.count.toLocaleString('en-US')} phiếu` 
+                                                : (monthlyPthspStats.value / 1000).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 1 }) + ' Tỷ'}
+                                         </span>
                                      </div>
                                  </div>
                              )}
-                             <div className="absolute right-0 bottom-0 opacity-10 transform translate-x-4 translate-y-4"><ClipboardList size={100} className="text-purple-600"/></div>
                          </div>
                     </div>
 
@@ -1325,19 +1451,31 @@ const Dashboard: React.FC<DashboardProps> = ({
                                   <div className="p-2 bg-teal-100 rounded-lg text-teal-600 shadow-sm group-hover:scale-110 transition-transform"><Package size={20}/></div>
                                   <p className="text-sm font-bold text-teal-800 opacity-80 uppercase tracking-wide">4. Nhập kho</p>
                              </div>
-                             <div className="z-10 flex items-baseline gap-2">
-                                  <h4 className="text-4xl font-extrabold text-teal-600 tracking-tight">{overviewMetric === 'COUNT' ? inventoryOverviewCardValue.toLocaleString('en-US') : formatDecimal(inventoryOverviewCardValue)}</h4>
-                                  <span className="text-sm font-medium text-teal-400">{overviewMetric === 'COUNT' ? 'items' : 'đơn vị (1,000đ)'}</span>
+                             <div className="z-10 flex flex-col items-start">
+                                  <span className="text-[10px] font-bold text-teal-500 uppercase tracking-wider opacity-70 mb-1 block">Trong ngày</span>
+                                  <div className="flex items-baseline gap-2">
+                                      <h4 className="text-4xl font-extrabold text-teal-600 tracking-tight">
+                                        {overviewMetric === 'COUNT' 
+                                            ? inventoryOverviewCardValue.toLocaleString('en-US') 
+                                            : (inventoryOverviewCardValue / 1000).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 1 })}
+                                      </h4>
+                                      <span className="text-sm font-medium text-teal-400">
+                                        {overviewMetric === 'COUNT' ? 'items' : 'Tỷ đồng'}
+                                      </span>
+                                  </div>
                              </div>
                              {monthlyInventoryOverviewStats.count > 0 && (
                                  <div className="z-10 mt-3 pt-3 border-t border-teal-200/60 w-full">
                                      <div className="flex justify-between items-center">
-                                         <span className="text-xs font-bold text-teal-800/70 uppercase">Lũy kế T{latestUnifiedDate?.getMonth()! + 1}:</span>
-                                         <span className="text-sm font-extrabold text-teal-700">{overviewMetric === 'COUNT' ? `${monthlyInventoryOverviewStats.count.toLocaleString('en-US')} items` : formatDecimal(monthlyInventoryOverviewStats.value)}</span>
+                                         <span className="text-lg font-bold text-teal-800 uppercase">Lũy kế T{latestUnifiedDate?.getMonth()! + 1}:</span>
+                                         <span className="text-3xl font-extrabold text-teal-700">
+                                            {overviewMetric === 'COUNT' 
+                                                ? `${monthlyInventoryOverviewStats.count.toLocaleString('en-US')} items` 
+                                                : (monthlyInventoryOverviewStats.value / 1000).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 1 }) + ' Tỷ'}
+                                         </span>
                                      </div>
                                  </div>
                              )}
-                             <div className="absolute right-0 bottom-0 opacity-10 transform translate-x-4 translate-y-4"><Package size={100} className="text-teal-600"/></div>
                          </div>
                     </div>
 
@@ -1345,17 +1483,99 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
         )}
 
+        <div ref={productionStatusRef} id="production-status-section" className="scroll-mt-24 w-full bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col gap-8">
+            {/* Parent Header */}
+            <div className="flex flex-row justify-between items-start border-b border-slate-100 pb-4">
+                <div className="flex flex-col gap-1">
+                  <h3 className="text-lg font-semibold text-slate-700 flex items-center gap-2">
+                      <Activity className="w-5 h-5 text-wood-600"/> TÌNH TRẠNG SẢN XUẤT
+                  </h3>
+                  <p className="text-xs text-slate-500">Tổng hợp năng lực sản xuất hiện tại và phân bổ chi tiết theo xưởng</p>
+                </div>
+                <button onClick={handleExportProductionStatus} className="p-1.5 text-slate-500 hover:text-wood-600 hover:bg-wood-50 rounded-lg transition-colors border border-slate-200" title="Xuất dữ liệu sản xuất"><Download size={16} /></button>
+            </div>
+
+            {/* Section 1: Capability Analysis */}
+            <div>
+               <h4 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2 uppercase tracking-wide">
+                   <Layers className="w-4 h-4 text-wood-500"/> 1. Phân tích Khả năng & Thành tiền
+               </h4>
+               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="bg-green-50/50 rounded-xl p-2 border border-green-100 flex flex-col gap-2">
+                     <CompactStatCard title="CÓ THỂ SẢN XUẤT" value={formatNumber(cardMetrics.coTheSX)} icon={<CheckCircle className="w-5 h-5 text-green-600" />} bg="bg-green-50" borderColor="border-green-400" textColor="text-green-800" isParent={true} />
+                     <div className="grid grid-cols-3 gap-2">
+                        <CompactStatCard title="VECNI + FITTING" value={formatNumber(cardMetrics.vecniFitting)} icon={<div className="w-2 h-2 rounded-full bg-blue-500"></div>} bg="bg-white" borderColor="border-blue-200" textColor="text-slate-700" />
+                        <CompactStatCard title="ĐANG TRÊN CHUYỀN" value={formatNumber(cardMetrics.chuyenKhac)} icon={<div className="w-2 h-2 rounded-full bg-indigo-500"></div>} bg="bg-white" borderColor="border-indigo-200" textColor="text-slate-700" />
+                        <CompactStatCard title="CÓ PHIẾU CHƯA SX" value={formatNumber(cardMetrics.coPhieuChuaSX)} icon={<div className="w-2 h-2 rounded-full bg-amber-500"></div>} bg="bg-white" borderColor="border-amber-200" textColor="text-slate-700" />
+                     </div>
+                  </div>
+                  <div className="bg-red-50/50 rounded-xl p-2 border border-red-100 flex flex-col gap-2">
+                     <CompactStatCard title="CHƯA THỂ SẢN XUẤT" value={formatNumber(cardMetrics.chuaTheSX)} icon={<CloseIcon className="w-5 h-5 text-red-600" />} bg="bg-red-50" borderColor="border-red-400" textColor="text-red-800" isParent={true} />
+                     <div className="grid grid-cols-2 gap-2">
+                        <CompactStatCard title="VƯỚNG SL CHƯA REV" value={formatNumber(cardMetrics.vuongSL)} icon={<div className="w-2 h-2 rounded-full bg-orange-500"></div>} bg="bg-white" borderColor="border-orange-200" textColor="text-slate-700" />
+                        <CompactStatCard title="CHƯA TRIỂN KHAI SX" value={formatNumber(cardMetrics.chuaTrienKhai)} icon={<div className="w-2 h-2 rounded-full bg-slate-400"></div>} bg="bg-white" borderColor="border-slate-300" textColor="text-slate-700" />
+                     </div>
+                  </div>
+               </div>
+            </div>
+
+            {/* Section 2: Workshop Pivot */}
+            <div ref={pivotWorkshopRef}>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
+                   <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2 uppercase tracking-wide">
+                        <TableIcon className="w-4 h-4 text-wood-500"/> 2. Chi tiết Giá trị (Tình Trạng x Xưởng)
+                   </h4>
+                   <MetricSwitcher current={workshopMetric} onChange={setWorkshopMetric} />
+                </div>
+                {pivotWorkshopData ? (
+                  <div className="overflow-x-auto custom-scrollbar border border-slate-200 rounded-lg">
+                    <table className="w-full text-xs text-right min-w-[800px]">
+                      <thead className="bg-wood-50 text-slate-700 font-semibold uppercase">
+                        <tr>
+                          <th className="px-3 py-2 text-left sticky left-0 bg-wood-50 border-b border-wood-200 z-10 min-w-[180px]">Tình Trạng / Xưởng</th>
+                          {pivotWorkshopData.uniqueWorkshops.map(w => (<th key={w} className="px-3 py-2 border-b border-wood-200 whitespace-nowrap text-wood-800">{w}</th>))}
+                          <th className="px-3 py-2 bg-wood-100 border-b border-wood-200 font-bold text-slate-800">Tổng Cộng</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {pivotWorkshopData.uniqueStatuses.map((s: string) => (
+                          <tr key={s} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-3 py-2 text-left font-medium text-slate-700 sticky left-0 bg-white hover:bg-slate-50 z-10 whitespace-nowrap border-r border-slate-100">{s}</td>
+                            {pivotWorkshopData.uniqueWorkshops.map((w: string) => { 
+                                const val = pivotWorkshopData.matrix[s]?.[w] || 0; 
+                                return (<td key={w} className={`px-3 py-2 whitespace-nowrap ${val === 0 ? 'text-slate-300' : 'text-slate-600'}`}>{val === 0 ? '-' : formatNumber(val, workshopMetric)}</td>); 
+                            })}
+                            <td className="px-3 py-2 font-bold text-slate-800 bg-wood-50/50">{formatNumber(pivotWorkshopData.rowTotals[s], workshopMetric)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="bg-wood-100 font-bold text-slate-800 border-t border-wood-300">
+                        <tr>
+                          <td className="px-3 py-2 text-left sticky left-0 bg-wood-100 z-10">Tổng Cộng</td>
+                          {pivotWorkshopData.uniqueWorkshops.map((w: string) => (<td key={w} className="px-3 py-2 whitespace-nowrap">{formatNumber(pivotWorkshopData.colTotals[w], workshopMetric)}</td>))}
+                          <td className="px-3 py-2 text-wood-800 text-sm">{formatNumber(pivotWorkshopData.grandTotal, workshopMetric)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                ) : <div className="p-8 text-center text-slate-500 bg-slate-50 rounded-lg">Không đủ dữ liệu hoặc thiếu cấu hình cột để tạo bảng Pivot.</div>}
+            </div>
+        </div>
+
         {/* --- NEW SECTION: BÁO CÁO TỶ TRỌNG ĐIỂM NGHẼN --- */}
         {bottleneckData.length > 0 && (
           <div ref={bottleneckSectionRef} className="scroll-mt-24 w-full bg-white p-6 rounded-xl shadow-sm border border-red-100 flex flex-col gap-6">
-            <div className="flex items-center gap-3 border-b border-red-50 pb-4">
-              <div className="bg-red-50 p-2 rounded-lg text-red-600">
-                <AlertTriangle size={24} />
+            <div className="flex flex-row justify-between items-start border-b border-red-50 pb-4">
+              <div className="flex items-center gap-3">
+                  <div className="bg-red-50 p-2 rounded-lg text-red-600">
+                    <AlertTriangle size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-800">BÁO CÁO TỶ TRỌNG ĐIỂM NGHẼN</h3>
+                    <p className="text-xs text-slate-500">Phân tích thời gian tồn tại của các hạng mục (HEX) tại từng công đoạn</p>
+                  </div>
               </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-800">BÁO CÁO TỶ TRỌNG ĐIỂM NGHẼN</h3>
-                <p className="text-xs text-slate-500">Phân tích thời gian tồn tại của các hạng mục (HEX) tại từng công đoạn</p>
-              </div>
+              <button onClick={handleExportBottlenecks} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg border border-red-100" title="Xuất báo cáo điểm nghẽn"><Download size={16} /></button>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1584,66 +1804,6 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
         )}
 
-        <div>
-           <h3 className="text-base font-semibold text-slate-700 mb-3 flex items-center gap-2"><Layers className="w-4 h-4 text-wood-500"/>Phân tích Khả năng Sản xuất - Thành tiền Đơn hàng còn lại</h3>
-           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-green-50/50 rounded-xl p-2 border border-green-100 flex flex-col gap-2">
-                 <CompactStatCard title="CÓ THỂ SẢN XUẤT" value={formatNumber(cardMetrics.coTheSX)} icon={<CheckCircle className="w-5 h-5 text-green-600" />} bg="bg-green-50" borderColor="border-green-400" textColor="text-green-800" isParent={true} />
-                 <div className="grid grid-cols-3 gap-2">
-                    <CompactStatCard title="VECNI + FITTING" value={formatNumber(cardMetrics.vecniFitting)} icon={<div className="w-2 h-2 rounded-full bg-blue-500"></div>} bg="bg-white" borderColor="border-blue-200" textColor="text-slate-700" />
-                    <CompactStatCard title="ĐANG TRÊN CHUYỀN" value={formatNumber(cardMetrics.chuyenKhac)} icon={<div className="w-2 h-2 rounded-full bg-indigo-500"></div>} bg="bg-white" borderColor="border-indigo-200" textColor="text-slate-700" />
-                    <CompactStatCard title="CÓ PHIẾU CHƯA SX" value={formatNumber(cardMetrics.coPhieuChuaSX)} icon={<div className="w-2 h-2 rounded-full bg-amber-500"></div>} bg="bg-white" borderColor="border-amber-200" textColor="text-slate-700" />
-                 </div>
-              </div>
-              <div className="bg-red-50/50 rounded-xl p-2 border border-red-100 flex flex-col gap-2">
-                 <CompactStatCard title="CHƯA THỂ SẢN XUẤT" value={formatNumber(cardMetrics.chuaTheSX)} icon={<CloseIcon className="w-5 h-5 text-red-600" />} bg="bg-red-50" borderColor="border-red-400" textColor="text-red-800" isParent={true} />
-                 <div className="grid grid-cols-2 gap-2">
-                    <CompactStatCard title="VƯỚNG SL CHƯA REV" value={formatNumber(cardMetrics.vuongSL)} icon={<div className="w-2 h-2 rounded-full bg-orange-500"></div>} bg="bg-white" borderColor="border-orange-200" textColor="text-slate-700" />
-                    <CompactStatCard title="CHƯA TRIỂN KHAI SX" value={formatNumber(cardMetrics.chuaTrienKhai)} icon={<div className="w-2 h-2 rounded-full bg-slate-400"></div>} bg="bg-white" borderColor="border-slate-300" textColor="text-slate-700" />
-                 </div>
-              </div>
-           </div>
-        </div>
-
-        <div ref={pivotWorkshopRef} className="scroll-mt-24 w-full bg-white p-5 rounded-xl shadow-sm border border-wood-100 flex flex-col">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
-               <h3 className="text-base font-semibold text-slate-700 flex items-center gap-2"><TableIcon className="w-4 h-4 text-wood-500"/>Chi tiết Giá trị (Tình Trạng x Xưởng)</h3>
-               <MetricSwitcher current={workshopMetric} onChange={setWorkshopMetric} />
-            </div>
-            {pivotWorkshopData ? (
-              <div className="overflow-x-auto custom-scrollbar border border-slate-200 rounded-lg">
-                <table className="w-full text-xs text-right min-w-[800px]">
-                  <thead className="bg-wood-50 text-slate-700 font-semibold uppercase">
-                    <tr>
-                      <th className="px-3 py-2 text-left sticky left-0 bg-wood-50 border-b border-wood-200 z-10 min-w-[180px]">Tình Trạng / Xưởng</th>
-                      {pivotWorkshopData.uniqueWorkshops.map(w => (<th key={w} className="px-3 py-2 border-b border-wood-200 whitespace-nowrap text-wood-800">{w}</th>))}
-                      <th className="px-3 py-2 bg-wood-100 border-b border-wood-200 font-bold text-slate-800">Tổng Cộng</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {pivotWorkshopData.uniqueStatuses.map((s: string) => (
-                      <tr key={s} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-3 py-2 text-left font-medium text-slate-700 sticky left-0 bg-white hover:bg-slate-50 z-10 whitespace-nowrap border-r border-slate-100">{s}</td>
-                        {pivotWorkshopData.uniqueWorkshops.map((w: string) => { 
-                            const val = pivotWorkshopData.matrix[s as string]?.[w as string] || 0; 
-                            return (<td key={w} className={`px-3 py-2 whitespace-nowrap ${val === 0 ? 'text-slate-300' : 'text-slate-600'}`}>{val === 0 ? '-' : formatNumber(val, workshopMetric)}</td>); 
-                        })}
-                        <td className="px-3 py-2 font-bold text-slate-800 bg-wood-50/50">{formatNumber(pivotWorkshopData.rowTotals[s], workshopMetric)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="bg-wood-100 font-bold text-slate-800 border-t border-wood-300">
-                    <tr>
-                      <td className="px-3 py-2 text-left sticky left-0 bg-wood-100 z-10">Tổng Cộng</td>
-                      {pivotWorkshopData.uniqueWorkshops.map(w => (<td key={w} className="px-3 py-2 whitespace-nowrap">{formatNumber(pivotWorkshopData.colTotals[w], workshopMetric)}</td>))}
-                      <td className="px-3 py-2 text-wood-800 text-sm">{formatNumber(pivotWorkshopData.grandTotal, workshopMetric)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            ) : <div className="p-8 text-center text-slate-500 bg-slate-50 rounded-lg">Không đủ dữ liệu hoặc thiếu cấu hình cột để tạo bảng Pivot.</div>}
-        </div>
-
         <div ref={projectSummaryRef} className="scroll-mt-24 w-full bg-white p-5 rounded-xl shadow-sm border border-emerald-100 flex flex-col">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
                <h3 className="text-base font-semibold text-slate-700 flex items-center gap-2"><Activity className="w-4 h-4 text-emerald-600"/>Tình trạng đơn hàng theo Công trình</h3>
@@ -1735,7 +1895,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                       <tr key={p} className="hover:bg-slate-50 transition-colors group">
                         <td className="px-3 py-2 text-left font-medium text-slate-700 sticky left-0 bg-white group-hover:bg-slate-50 z-10 whitespace-nowrap border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{p}</td>
                         {pivotProjectData.uniqueStatuses.map((s: string) => { 
-                            const val = pivotProjectData.matrix[p]?.[s as string] || 0; 
+                            const val = pivotProjectData.matrix[p]?.[s] || 0; 
                             return (<td key={s} className={`px-3 py-2 whitespace-nowrap ${val === 0 ? 'text-slate-300' : 'text-slate-600'}`}>{val === 0 ? '-' : formatNumber(val, projectMetric)}</td>); 
                         })}
                         <td className="px-3 py-2 font-bold text-slate-800 bg-blue-50/30">{formatNumber(pivotProjectData.rowTotals[p], projectMetric)}</td>
@@ -1745,7 +1905,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                   <tfoot className="bg-blue-100 font-bold text-slate-800 border-t border-blue-300">
                     <tr>
                       <td className="px-3 py-2 text-left sticky left-0 bottom-0 z-20 bg-blue-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">Tổng Cộng</td>
-                      {pivotProjectData.uniqueStatuses.map(s => (<td key={s} className="px-3 py-2 whitespace-nowrap">{formatNumber(pivotProjectData.colTotals[s], projectMetric)}</td>))}
+                      {pivotProjectData.uniqueStatuses.map((s: string) => (<td key={s} className="px-3 py-2 whitespace-nowrap">{formatNumber(pivotProjectData.colTotals[s], projectMetric)}</td>))}
                       <td className="px-3 py-2 text-blue-900 text-sm">{formatNumber(pivotProjectData.grandTotal, projectMetric)}</td>
                     </tr>
                   </tfoot>
@@ -1822,7 +1982,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 <tr key={group} className="hover:bg-slate-50 transition-colors group">
                                     <td className="px-3 py-2 text-left font-medium text-slate-700 sticky left-0 bg-white group-hover:bg-slate-50 z-10 whitespace-nowrap border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{group}</td>
                                     {pivotMaterialStatusData.uniqueStatuses.map((s: string) => { 
-                                        const val = pivotMaterialStatusData.matrix[group]?.[s as string] || 0; 
+                                        const val = pivotMaterialStatusData.matrix[group]?.[s] || 0; 
                                         return (<td key={s} className={`px-3 py-2 whitespace-nowrap ${val === 0 ? 'text-slate-300' : 'text-slate-600'}`}>{val === 0 ? '-' : (matStatusMetric === 'SUM_QTY' ? formatDecimal(val) : formatNumber(val))}</td>); 
                                     })}
                                     <td className="px-3 py-2 font-bold text-slate-800 bg-emerald-50/30">{matStatusMetric === 'SUM_QTY' ? formatDecimal(pivotMaterialStatusData.rowTotals[group]) : formatNumber(pivotMaterialStatusData.rowTotals[group])}</td>
@@ -1832,7 +1992,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         <tfoot className="bg-emerald-100 font-bold text-slate-800 border-t border-emerald-300">
                             <tr>
                                 <td className="px-3 py-2 text-left sticky left-0 bottom-0 z-20 bg-emerald-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">Tổng Cộng (Toàn bộ)</td>
-                                {pivotMaterialStatusData.uniqueStatuses.map(s => (<td key={s} className="px-3 py-2 whitespace-nowrap">{matStatusMetric === 'SUM_QTY' ? formatDecimal(pivotMaterialStatusData.colTotals[s]) : formatNumber(pivotMaterialStatusData.colTotals[s])}</td>))}
+                                {pivotMaterialStatusData.uniqueStatuses.map((s: string) => (<td key={s} className="px-3 py-2 whitespace-nowrap">{matStatusMetric === 'SUM_QTY' ? formatDecimal(pivotMaterialStatusData.colTotals[s]) : formatNumber(pivotMaterialStatusData.colTotals[s])}</td>))}
                                 <td className="px-3 py-2 text-emerald-900 text-sm">{matStatusMetric === 'SUM_QTY' ? formatDecimal(pivotMaterialStatusData.grandTotal) : formatNumber(pivotMaterialStatusData.grandTotal)}</td>
                             </tr>
                         </tfoot>

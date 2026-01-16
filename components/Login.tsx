@@ -284,7 +284,7 @@ const Login: React.FC = () => {
         )}
 
         <div className="mt-8 text-center">
-           <p className="text-xs text-slate-400">© 2024 Operations Hub System</p>
+           <p className="text-xs text-slate-400">© 2026 Operations Hub System</p>
         </div>
       </div>
     </div>
