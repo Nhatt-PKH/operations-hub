@@ -3,7 +3,7 @@ import { DataRow, ColumnDefinition, TARGET_COLUMN_NAMES } from '../types';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, BarChart, Bar, LabelList
 } from 'recharts';
-import { CheckCircle, Filter, ChevronDown, XCircle as CloseIcon, Table as TableIcon, Layers, LayoutList, Calculator, Hash, Activity, Package, MinusCircle, Box, ChevronLeft, ChevronRight, CheckSquare, Square, Calendar, DollarSign, ListFilter, Import, BarChart2, PieChart, TrendingUp, AlertCircle, ShoppingCart, FileText, ClipboardList, Clock, AlertTriangle, Download } from 'lucide-react';
+import { CheckCircle, Filter, ChevronDown, XCircle as CloseIcon, Table as TableIcon, Layers, LayoutList, Calculator, Hash, Activity, Package, MinusCircle, Box, ChevronLeft, ChevronRight, CheckSquare, Square, Calendar, DollarSign, ListFilter, Import, BarChart2, PieChart, TrendingUp, AlertCircle, ShoppingCart, FileText, ClipboardList, Clock, AlertTriangle, Download, Eye, X, Building2 } from 'lucide-react';
 import { exportToCSV } from '../services/dataService';
 
 interface DashboardProps {
@@ -21,6 +21,7 @@ interface DashboardProps {
   tkbvColumns: ColumnDefinition[];
   pthspData: DataRow[];
   pthspColumns: ColumnDefinition[];
+  isSidebarCollapsed: boolean;
 }
 
 interface BottleneckItem {
@@ -294,7 +295,8 @@ const Dashboard: React.FC<DashboardProps> = ({
   tkbvData, 
   tkbvColumns, 
   pthspData, 
-  pthspColumns
+  pthspColumns,
+  isSidebarCollapsed
 }) => {
   const productionStatusRef = useRef<HTMLDivElement>(null); // New Parent Ref
   const pivotWorkshopRef = useRef<HTMLDivElement>(null);
@@ -309,6 +311,12 @@ const Dashboard: React.FC<DashboardProps> = ({
   const bottleneckSectionRef = useRef<HTMLDivElement>(null);
   
   const hasInitializedOverviewDate = useRef(false);
+
+  // Modal State
+  const [isIpoDetailModalOpen, setIsIpoDetailModalOpen] = useState(false);
+  const [isTkbvDetailModalOpen, setIsTkbvDetailModalOpen] = useState(false);
+  const [isPthspDetailModalOpen, setIsPthspDetailModalOpen] = useState(false);
+  const [isInventoryDetailModalOpen, setIsInventoryDetailModalOpen] = useState(false);
 
   const findColumnKey = (cols: ColumnDefinition[], target: string) => {
     if (!cols || cols.length === 0) return target;
@@ -370,16 +378,22 @@ const Dashboard: React.FC<DashboardProps> = ({
   const orderHexKey = findColumnKey(orderColumns, TARGET_COLUMN_NAMES.HEX);
   const orderDateKey = findColumnKey(orderColumns, TARGET_COLUMN_NAMES.NGAY_NHAN_TU_PM);
   const orderValueKey = findColumnKey(orderColumns, TARGET_COLUMN_NAMES.TRI_GIA_DON_HANG_TONG);
+  const orderXuongKey = findColumnKey(orderColumns, TARGET_COLUMN_NAMES.XUONG); // Needed for modal analysis
+  const orderCongTrinhKey = findColumnKey(orderColumns, TARGET_COLUMN_NAMES.CONG_TRINH); // Needed for modal analysis by project
 
   // TKBV Keys
   const tkbvDateKey = findColumnKey(tkbvColumns, TARGET_COLUMN_NAMES.NGAY_NHAN);
   const tkbvValueKey = findColumnKey(tkbvColumns, TARGET_COLUMN_NAMES.TRI_GIA_DON_HANG_TONG); 
   const tkbvHexKey = findColumnKey(tkbvColumns, TARGET_COLUMN_NAMES.HEX); // HEX KEY FOR TKBV
+  const tkbvXuongKey = findColumnKey(tkbvColumns, TARGET_COLUMN_NAMES.XUONG);
+  const tkbvCongTrinhKey = findColumnKey(tkbvColumns, TARGET_COLUMN_NAMES.CONG_TRINH);
 
   // PTHSP Keys
   const pthspDateKey = findColumnKey(pthspColumns, TARGET_COLUMN_NAMES.NGAY_HOAN_THANH);
   const pthspValueKey = findColumnKey(pthspColumns, TARGET_COLUMN_NAMES.TRI_GIA_DON_HANG_TONG);
   const pthspHexKey = findColumnKey(pthspColumns, TARGET_COLUMN_NAMES.HEX); // HEX KEY FOR PTHSP
+  const pthspXuongKey = findColumnKey(pthspColumns, TARGET_COLUMN_NAMES.XUONG);
+  const pthspCongTrinhKey = findColumnKey(pthspColumns, TARGET_COLUMN_NAMES.CONG_TRINH);
 
   // Filters State
   const [filters, setFilters] = useState<{
@@ -792,6 +806,94 @@ const Dashboard: React.FC<DashboardProps> = ({
         return maxDate;
   }, [overviewDateFilters, unifiedDateOptions]);
 
+  // Generic Helper for Pivot Analysis (Replaces specific logic to avoid duplication)
+  const calculatePivotAnalysis = (
+    data: DataRow[], 
+    dateKey: string | undefined, 
+    groupKey: string | undefined, 
+    hexKey: string | undefined, 
+    valueKey: string | undefined,
+    targetDate: Date | null
+  ) => {
+    if (!targetDate || !dateKey) return [];
+    
+    const tMonth = targetDate.getMonth();
+    const tYear = targetDate.getFullYear();
+    // Updated structure to hold both Count (Set) and Value (number)
+    const agg: Record<string, { dailyCount: Set<string>, mtdCount: Set<string>, dailyVal: number, mtdVal: number }> = {};
+
+    data.forEach(row => {
+        const rowDate = parseVNDate(String(row[dateKey]));
+        if (!rowDate) return;
+
+        const group = groupKey ? String(row[groupKey] || 'Chưa xác định').trim() : 'Chưa xác định';
+        const hex = hexKey ? String(row[hexKey] || Math.random().toString()) : Math.random().toString();
+        const val = valueKey ? parseNumber(row[valueKey]) : 0;
+
+        if (!agg[group]) agg[group] = { dailyCount: new Set(), mtdCount: new Set(), dailyVal: 0, mtdVal: 0 };
+
+        // MTD Logic: Same Month/Year AND date <= targetDate
+        if (rowDate.getMonth() === tMonth && rowDate.getFullYear() === tYear && rowDate <= targetDate) {
+             agg[group].mtdCount.add(hex);
+             agg[group].mtdVal += val;
+             
+             // Daily Logic: Exactly match date
+             if (rowDate.getDate() === targetDate.getDate()) {
+                 agg[group].dailyCount.add(hex);
+                 agg[group].dailyVal += val;
+             }
+        }
+    });
+
+    return Object.entries(agg).map(([name, data]) => {
+        const isCount = overviewMetric === 'COUNT';
+        return {
+            name,
+            daily: isCount ? data.dailyCount.size : data.dailyVal,
+            mtd: isCount ? data.mtdCount.size : data.mtdVal
+        };
+    })
+    .filter(i => i.mtd > 0) 
+    .sort((a,b) => b.mtd - a.mtd);
+  };
+
+  // Pivot Logic for IPO Modal
+  const ipoWorkshopAnalysis = useMemo(() => {
+      return calculatePivotAnalysis(orderData, orderDateKey, orderXuongKey, orderHexKey, orderValueKey, latestUnifiedDate);
+  }, [orderData, latestUnifiedDate, orderDateKey, orderXuongKey, orderHexKey, orderValueKey, overviewMetric]);
+
+  const ipoProjectAnalysis = useMemo(() => {
+      return calculatePivotAnalysis(orderData, orderDateKey, orderCongTrinhKey, orderHexKey, orderValueKey, latestUnifiedDate);
+  }, [orderData, latestUnifiedDate, orderDateKey, orderCongTrinhKey, orderHexKey, orderValueKey, overviewMetric]);
+
+  // Pivot Logic for TKBV Modal
+  const tkbvWorkshopAnalysis = useMemo(() => {
+      return calculatePivotAnalysis(tkbvData, tkbvDateKey, tkbvXuongKey, tkbvHexKey, tkbvValueKey, latestUnifiedDate);
+  }, [tkbvData, latestUnifiedDate, tkbvDateKey, tkbvXuongKey, tkbvHexKey, tkbvValueKey, overviewMetric]);
+
+  const tkbvProjectAnalysis = useMemo(() => {
+      return calculatePivotAnalysis(tkbvData, tkbvDateKey, tkbvCongTrinhKey, tkbvHexKey, tkbvValueKey, latestUnifiedDate);
+  }, [tkbvData, latestUnifiedDate, tkbvDateKey, tkbvCongTrinhKey, tkbvHexKey, tkbvValueKey, overviewMetric]);
+
+  // Pivot Logic for PTHSP Modal
+  const pthspWorkshopAnalysis = useMemo(() => {
+      return calculatePivotAnalysis(pthspData, pthspDateKey, pthspXuongKey, pthspHexKey, pthspValueKey, latestUnifiedDate);
+  }, [pthspData, latestUnifiedDate, pthspDateKey, pthspXuongKey, pthspHexKey, pthspValueKey, overviewMetric]);
+
+  const pthspProjectAnalysis = useMemo(() => {
+      return calculatePivotAnalysis(pthspData, pthspDateKey, pthspCongTrinhKey, pthspHexKey, pthspValueKey, latestUnifiedDate);
+  }, [pthspData, latestUnifiedDate, pthspDateKey, pthspCongTrinhKey, pthspHexKey, pthspValueKey, overviewMetric]);
+
+  // Pivot Logic for Inventory Modal
+  const inventoryWorkshopAnalysis = useMemo(() => {
+      return calculatePivotAnalysis(inventoryData, invDateKey, invXuongKey, invHexKey, invThanhTienKey, latestUnifiedDate);
+  }, [inventoryData, latestUnifiedDate, invDateKey, invXuongKey, invHexKey, invThanhTienKey, overviewMetric]);
+
+  const inventoryProjectAnalysis = useMemo(() => {
+      return calculatePivotAnalysis(inventoryData, invDateKey, invCongTrinhKey, invHexKey, invThanhTienKey, latestUnifiedDate);
+  }, [inventoryData, latestUnifiedDate, invDateKey, invCongTrinhKey, invHexKey, invThanhTienKey, overviewMetric]);
+
+
   const monthlyOrderStats = useMemo(() => {
         if (!latestUnifiedDate || !orderDateKey) return { count: 0, value: 0 };
         const tMonth = latestUnifiedDate.getMonth();
@@ -838,7 +940,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
         // Calculate
         const count = countUniqueHex(monthRows, pthspHexKey);
-        const value = pthspValueKey ? monthRows.reduce((sum, row) => sum + (parseNumber(row[pthspValueKey]) / 1000), 0) : 0;
+        const value = pthspValueKey ? monthRows.reduce((sum, row) => sum + parseNumber(row[pthspValueKey]), 0) : 0;
         
         return { count, value };
   }, [pthspData, latestUnifiedDate, pthspDateKey, pthspValueKey, pthspHexKey]);
@@ -856,7 +958,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
         // Calculate
         const count = countUniqueHex(monthRows, invHexKey);
-        const value = invThanhTienKey ? monthRows.reduce((sum, row) => sum + (parseNumber(row[invThanhTienKey]) / 1000), 0) : 0;
+        const value = invThanhTienKey ? monthRows.reduce((sum, row) => sum + parseNumber(row[invThanhTienKey]), 0) : 0;
 
         return { count, value };
   }, [inventoryData, latestUnifiedDate, invDateKey, invThanhTienKey, invHexKey]);
@@ -1342,6 +1444,9 @@ const Dashboard: React.FC<DashboardProps> = ({
                     {/* CARD 1: ORDER DATA */}
                     <div className="flex flex-col gap-4">
                          <div className="p-5 bg-gradient-to-br from-pink-50 to-rose-50 rounded-xl border border-pink-100 shadow-sm flex flex-col justify-center relative overflow-hidden group hover:shadow-md transition-shadow h-full min-h-[160px]">
+                             <button onClick={() => setIsIpoDetailModalOpen(true)} className="absolute top-4 right-4 text-pink-400 hover:text-pink-700 transition-colors z-20" title="Xem chi tiết">
+                                <Eye size={18} />
+                             </button>
                              <div className="flex items-center gap-2 mb-3 z-10">
                                   <div className="p-2 bg-pink-100 rounded-lg text-pink-600 shadow-sm group-hover:scale-110 transition-transform"><ShoppingCart size={20}/></div>
                                   <p className="text-sm font-bold text-pink-800 opacity-80 uppercase tracking-wide">1. Đơn hàng mới (IPO)</p>
@@ -1377,6 +1482,9 @@ const Dashboard: React.FC<DashboardProps> = ({
                     {/* CARD 2: TKBV DATA */}
                     <div className="flex flex-col gap-4">
                          <div className="p-5 bg-gradient-to-br from-blue-50 to-sky-50 rounded-xl border border-blue-100 shadow-sm flex flex-col justify-center relative overflow-hidden group hover:shadow-md transition-shadow h-full min-h-[160px]">
+                             <button onClick={() => setIsTkbvDetailModalOpen(true)} className="absolute top-4 right-4 text-blue-400 hover:text-blue-700 transition-colors z-20" title="Xem chi tiết">
+                                <Eye size={18} />
+                             </button>
                              <div className="flex items-center gap-2 mb-3 z-10">
                                   <div className="p-2 bg-blue-100 rounded-lg text-blue-600 shadow-sm group-hover:scale-110 transition-transform"><FileText size={20}/></div>
                                   <p className="text-sm font-bold text-blue-800 opacity-80 uppercase tracking-wide">2. Đã Triển khai BV</p>
@@ -1412,6 +1520,9 @@ const Dashboard: React.FC<DashboardProps> = ({
                     {/* CARD 3: PTHSP DATA */}
                     <div className="flex flex-col gap-4">
                          <div className="p-5 bg-gradient-to-br from-purple-50 to-fuchsia-50 rounded-xl border border-purple-100 shadow-sm flex flex-col justify-center relative overflow-hidden group hover:shadow-md transition-shadow h-full min-h-[160px]">
+                             <button onClick={() => setIsPthspDetailModalOpen(true)} className="absolute top-4 right-4 text-purple-400 hover:text-purple-700 transition-colors z-20" title="Xem chi tiết">
+                                <Eye size={18} />
+                             </button>
                              <div className="flex items-center gap-2 mb-3 z-10">
                                   <div className="p-2 bg-purple-100 rounded-lg text-purple-600 shadow-sm group-hover:scale-110 transition-transform"><ClipboardList size={20}/></div>
                                   <p className="text-sm font-bold text-purple-800 opacity-80 uppercase tracking-wide">3. Đã Tính phiếu</p>
@@ -1447,6 +1558,9 @@ const Dashboard: React.FC<DashboardProps> = ({
                     {/* CARD 4: INVENTORY DATA (NEW) */}
                     <div className="flex flex-col gap-4">
                          <div className="p-5 bg-gradient-to-br from-teal-50 to-emerald-50 rounded-xl border border-teal-100 shadow-sm flex flex-col justify-center relative overflow-hidden group hover:shadow-md transition-shadow h-full min-h-[160px]">
+                             <button onClick={() => setIsInventoryDetailModalOpen(true)} className="absolute top-4 right-4 text-teal-400 hover:text-teal-700 transition-colors z-20" title="Xem chi tiết">
+                                <Eye size={18} />
+                             </button>
                              <div className="flex items-center gap-2 mb-3 z-10">
                                   <div className="p-2 bg-teal-100 rounded-lg text-teal-600 shadow-sm group-hover:scale-110 transition-transform"><Package size={20}/></div>
                                   <p className="text-sm font-bold text-teal-800 opacity-80 uppercase tracking-wide">4. Nhập kho</p>
@@ -2058,6 +2172,531 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
 
       </div>
+
+      {/* --- IPO DETAIL MODAL --- */}
+      {isIpoDetailModalOpen && (
+         <div className={`fixed inset-y-0 right-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-all duration-300
+         left-0 ${isSidebarCollapsed ? 'md:left-20' : 'md:left-64'}`}>
+            <div className="bg-white rounded-2xl shadow-2xl w-[90%] max-w-6xl max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-300">
+               <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+                  <div>
+                      <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <ShoppingCart className="text-pink-600" size={20} />
+                        Chi tiết Đơn hàng mới (IPO)
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-1">Dữ liệu được tổng hợp từ nguồn Đơn hàng tổng</p>
+                  </div>
+                  <button onClick={() => setIsIpoDetailModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full transition-colors">
+                     <X size={24} />
+                  </button>
+               </div>
+               
+               <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 custom-scrollbar">
+                  {/* Part 1: By Workshop */}
+                  <div className="mb-8">
+                     <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-3">
+                         <Layers size={16} className="text-wood-600"/> Chi tiết theo Xưởng
+                     </h4>
+                     {ipoWorkshopAnalysis.length > 0 ? (
+                        <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+                           <table className="w-full text-sm text-right">
+                              <thead className="bg-slate-100 text-slate-700 font-bold uppercase text-xs sticky top-0 z-10">
+                                  <tr>
+                                      <th className="px-4 py-3 text-left border-b border-slate-200">Xưởng Chính</th>
+                                      <th className="px-4 py-3 border-b border-slate-200 text-pink-700">
+                                          NGÀY {latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                                      </th>
+                                      <th className="px-4 py-3 border-b border-slate-200 text-indigo-700">
+                                          LŨY KẾ THÁNG {latestUnifiedDate ? `${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                                      </th>
+                                  </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                  {ipoWorkshopAnalysis.map((item, idx) => (
+                                      <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                          <td className="px-4 py-3 text-left font-medium text-slate-700">{item.name}</td>
+                                          <td className={`px-4 py-3 ${item.daily > 0 ? 'text-pink-600 font-bold' : 'text-slate-300'}`}>
+                                              {item.daily > 0 ? item.daily.toLocaleString('en-US') : '-'}
+                                          </td>
+                                          <td className={`px-4 py-3 ${item.mtd > 0 ? 'text-indigo-600 font-bold' : 'text-slate-300'}`}>
+                                              {item.mtd > 0 ? item.mtd.toLocaleString('en-US') : '-'}
+                                          </td>
+                                      </tr>
+                                  ))}
+                              </tbody>
+                              <tfoot className="bg-slate-100 font-bold text-slate-800 border-t border-slate-300 sticky bottom-0">
+                                  <tr>
+                                      <td className="px-4 py-3 text-left">TỔNG CỘNG</td>
+                                      <td className="px-4 py-3 text-pink-800">
+                                          {ipoWorkshopAnalysis.reduce((a,b) => a + b.daily, 0).toLocaleString('en-US')}
+                                      </td>
+                                      <td className="px-4 py-3 text-indigo-800">
+                                          {ipoWorkshopAnalysis.reduce((a,b) => a + b.mtd, 0).toLocaleString('en-US')}
+                                      </td>
+                                  </tr>
+                              </tfoot>
+                           </table>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center text-slate-400 p-8 bg-white rounded-lg border border-slate-200 border-dashed">
+                            <AlertCircle size={32} className="mb-2 opacity-50"/>
+                            <p>Không có dữ liệu phân tích theo Xưởng.</p>
+                        </div>
+                      )}
+                  </div>
+
+                  {/* Part 2: By Project */}
+                  <div className="border-t border-slate-200 pt-6">
+                     <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-3">
+                         <Building2 size={16} className="text-blue-600"/> Chi tiết theo Công trình
+                     </h4>
+                     {ipoProjectAnalysis.length > 0 ? (
+                        <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden flex flex-col max-h-[500px]">
+                           <div className="overflow-y-auto custom-scrollbar flex-1">
+                               <table className="w-full text-sm text-right relative border-collapse">
+                                  <thead className="bg-slate-100 text-slate-700 font-bold uppercase text-xs sticky top-0 z-20 shadow-sm">
+                                      <tr>
+                                          <th className="px-4 py-3 text-left border-b border-slate-200 bg-slate-100">Tên Công Trình</th>
+                                          <th className="px-4 py-3 border-b border-slate-200 text-pink-700 bg-slate-100">
+                                              NGÀY {latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth()+1}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                                          </th>
+                                          <th className="px-4 py-3 border-b border-slate-200 text-indigo-700 bg-slate-100">
+                                              LŨY KẾ THÁNG {latestUnifiedDate ? `${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                                          </th>
+                                      </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100">
+                                      {ipoProjectAnalysis.map((item, idx) => (
+                                          <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                              <td className="px-4 py-3 text-left font-medium text-slate-700">{item.name}</td>
+                                              <td className={`px-4 py-3 ${item.daily > 0 ? 'text-pink-600 font-bold' : 'text-slate-300'}`}>
+                                                  {item.daily > 0 ? item.daily.toLocaleString('en-US') : '-'}
+                                              </td>
+                                              <td className={`px-4 py-3 ${item.mtd > 0 ? 'text-indigo-600 font-bold' : 'text-slate-300'}`}>
+                                                  {item.mtd > 0 ? item.mtd.toLocaleString('en-US') : '-'}
+                                              </td>
+                                          </tr>
+                                      ))}
+                                  </tbody>
+                                  <tfoot className="bg-slate-100 font-bold text-slate-800 border-t border-slate-300 sticky bottom-0 z-20 shadow-[0_-2px_4px_rgba(0,0,0,0.05)]">
+                                      <tr>
+                                          <td className="px-4 py-3 text-left bg-slate-100">TỔNG CỘNG</td>
+                                          <td className="px-4 py-3 text-pink-800 bg-slate-100">
+                                              {ipoProjectAnalysis.reduce((a,b) => a + b.daily, 0).toLocaleString('en-US')}
+                                          </td>
+                                          <td className="px-4 py-3 text-indigo-800 bg-slate-100">
+                                              {ipoProjectAnalysis.reduce((a,b) => a + b.mtd, 0).toLocaleString('en-US')}
+                                          </td>
+                                      </tr>
+                                  </tfoot>
+                               </table>
+                           </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center text-slate-400 p-8 bg-white rounded-lg border border-slate-200 border-dashed">
+                            <AlertCircle size={32} className="mb-2 opacity-50"/>
+                            <p>Không có dữ liệu phân tích theo Công trình.</p>
+                        </div>
+                      )}
+                  </div>
+               </div>
+            </div>
+         </div>
+      )}
+
+      {/* --- TKBV DETAIL MODAL --- */}
+      {isTkbvDetailModalOpen && (
+         <div className={`fixed inset-y-0 right-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-all duration-300
+         left-0 ${isSidebarCollapsed ? 'md:left-20' : 'md:left-64'}`}>
+            <div className="bg-white rounded-2xl shadow-2xl w-[90%] max-w-6xl max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-300">
+               <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+                  <div>
+                      <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <FileText className="text-blue-600" size={20} />
+                        Chi tiết Triển khai Bản vẽ (TKBV)
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-1">Dữ liệu được tổng hợp từ nguồn TKBV</p>
+                  </div>
+                  <button onClick={() => setIsTkbvDetailModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full transition-colors">
+                     <X size={24} />
+                  </button>
+               </div>
+               
+               <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 custom-scrollbar">
+                  {/* Part 1: By Workshop */}
+                  <div className="mb-8">
+                     <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-3">
+                         <Layers size={16} className="text-wood-600"/> Chi tiết theo Xưởng
+                     </h4>
+                     {tkbvWorkshopAnalysis.length > 0 ? (
+                        <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+                           <table className="w-full text-sm text-right">
+                              <thead className="bg-slate-100 text-slate-700 font-bold uppercase text-xs sticky top-0 z-10">
+                                  <tr>
+                                      <th className="px-4 py-3 text-left border-b border-slate-200">Xưởng Chính</th>
+                                      <th className="px-4 py-3 border-b border-slate-200 text-blue-700">
+                                          NGÀY {latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                                      </th>
+                                      <th className="px-4 py-3 border-b border-slate-200 text-indigo-700">
+                                          LŨY KẾ THÁNG {latestUnifiedDate ? `${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                                      </th>
+                                  </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                  {tkbvWorkshopAnalysis.map((item, idx) => (
+                                      <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                          <td className="px-4 py-3 text-left font-medium text-slate-700">{item.name}</td>
+                                          <td className={`px-4 py-3 ${item.daily > 0 ? 'text-blue-600 font-bold' : 'text-slate-300'}`}>
+                                              {item.daily > 0 ? item.daily.toLocaleString('en-US') : '-'}
+                                          </td>
+                                          <td className={`px-4 py-3 ${item.mtd > 0 ? 'text-indigo-600 font-bold' : 'text-slate-300'}`}>
+                                              {item.mtd > 0 ? item.mtd.toLocaleString('en-US') : '-'}
+                                          </td>
+                                      </tr>
+                                  ))}
+                              </tbody>
+                              <tfoot className="bg-slate-100 font-bold text-slate-800 border-t border-slate-300 sticky bottom-0">
+                                  <tr>
+                                      <td className="px-4 py-3 text-left">TỔNG CỘNG</td>
+                                      <td className="px-4 py-3 text-blue-800">
+                                          {tkbvWorkshopAnalysis.reduce((a,b) => a + b.daily, 0).toLocaleString('en-US')}
+                                      </td>
+                                      <td className="px-4 py-3 text-indigo-800">
+                                          {tkbvWorkshopAnalysis.reduce((a,b) => a + b.mtd, 0).toLocaleString('en-US')}
+                                      </td>
+                                  </tr>
+                              </tfoot>
+                           </table>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center text-slate-400 p-8 bg-white rounded-lg border border-slate-200 border-dashed">
+                            <AlertCircle size={32} className="mb-2 opacity-50"/>
+                            <p>Không có dữ liệu phân tích theo Xưởng.</p>
+                        </div>
+                      )}
+                  </div>
+
+                  {/* Part 2: By Project */}
+                  <div className="border-t border-slate-200 pt-6">
+                     <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-3">
+                         <Building2 size={16} className="text-blue-600"/> Chi tiết theo Công trình
+                     </h4>
+                     {tkbvProjectAnalysis.length > 0 ? (
+                        <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden flex flex-col max-h-[500px]">
+                           <div className="overflow-y-auto custom-scrollbar flex-1">
+                               <table className="w-full text-sm text-right relative border-collapse">
+                                  <thead className="bg-slate-100 text-slate-700 font-bold uppercase text-xs sticky top-0 z-20 shadow-sm">
+                                      <tr>
+                                          <th className="px-4 py-3 text-left border-b border-slate-200 bg-slate-100">Tên Công Trình</th>
+                                          <th className="px-4 py-3 border-b border-slate-200 text-blue-700 bg-slate-100">
+                                              NGÀY {latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth()+1}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                                          </th>
+                                          <th className="px-4 py-3 border-b border-slate-200 text-indigo-700 bg-slate-100">
+                                              LŨY KẾ THÁNG {latestUnifiedDate ? `${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                                          </th>
+                                      </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100">
+                                      {tkbvProjectAnalysis.map((item, idx) => (
+                                          <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                              <td className="px-4 py-3 text-left font-medium text-slate-700">{item.name}</td>
+                                              <td className={`px-4 py-3 ${item.daily > 0 ? 'text-blue-600 font-bold' : 'text-slate-300'}`}>
+                                                  {item.daily > 0 ? item.daily.toLocaleString('en-US') : '-'}
+                                              </td>
+                                              <td className={`px-4 py-3 ${item.mtd > 0 ? 'text-indigo-600 font-bold' : 'text-slate-300'}`}>
+                                                  {item.mtd > 0 ? item.mtd.toLocaleString('en-US') : '-'}
+                                              </td>
+                                          </tr>
+                                      ))}
+                                  </tbody>
+                                  <tfoot className="bg-slate-100 font-bold text-slate-800 border-t border-slate-300 sticky bottom-0 z-20 shadow-[0_-2px_4px_rgba(0,0,0,0.05)]">
+                                      <tr>
+                                          <td className="px-4 py-3 text-left bg-slate-100">TỔNG CỘNG</td>
+                                          <td className="px-4 py-3 text-blue-800 bg-slate-100">
+                                              {tkbvProjectAnalysis.reduce((a,b) => a + b.daily, 0).toLocaleString('en-US')}
+                                          </td>
+                                          <td className="px-4 py-3 text-indigo-800 bg-slate-100">
+                                              {tkbvProjectAnalysis.reduce((a,b) => a + b.mtd, 0).toLocaleString('en-US')}
+                                          </td>
+                                      </tr>
+                                  </tfoot>
+                               </table>
+                           </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center text-slate-400 p-8 bg-white rounded-lg border border-slate-200 border-dashed">
+                            <AlertCircle size={32} className="mb-2 opacity-50"/>
+                            <p>Không có dữ liệu phân tích theo Công trình.</p>
+                        </div>
+                      )}
+                  </div>
+               </div>
+            </div>
+         </div>
+      )}
+
+      {/* --- PTHSP DETAIL MODAL --- */}
+      {isPthspDetailModalOpen && (
+         <div className={`fixed inset-y-0 right-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-all duration-300
+         left-0 ${isSidebarCollapsed ? 'md:left-20' : 'md:left-64'}`}>
+            <div className="bg-white rounded-2xl shadow-2xl w-[90%] max-w-6xl max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-300">
+               <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+                  <div>
+                      <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <ClipboardList className="text-purple-600" size={20} />
+                        Chi tiết Đã Tính Phiếu (PTHSP)
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-1">Dữ liệu được tổng hợp từ nguồn PTHSP</p>
+                  </div>
+                  <button onClick={() => setIsPthspDetailModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full transition-colors">
+                     <X size={24} />
+                  </button>
+               </div>
+               
+               <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 custom-scrollbar">
+                  {/* Part 1: By Workshop */}
+                  <div className="mb-8">
+                     <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-3">
+                         <Layers size={16} className="text-wood-600"/> Chi tiết theo Xưởng
+                     </h4>
+                     {pthspWorkshopAnalysis.length > 0 ? (
+                        <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+                           <table className="w-full text-sm text-right">
+                              <thead className="bg-slate-100 text-slate-700 font-bold uppercase text-xs sticky top-0 z-10">
+                                  <tr>
+                                      <th className="px-4 py-3 text-left border-b border-slate-200">Xưởng Chính</th>
+                                      <th className="px-4 py-3 border-b border-slate-200 text-purple-700">
+                                          NGÀY {latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                                      </th>
+                                      <th className="px-4 py-3 border-b border-slate-200 text-indigo-700">
+                                          LŨY KẾ THÁNG {latestUnifiedDate ? `${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                                      </th>
+                                  </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                  {pthspWorkshopAnalysis.map((item, idx) => (
+                                      <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                          <td className="px-4 py-3 text-left font-medium text-slate-700">{item.name}</td>
+                                          <td className={`px-4 py-3 ${item.daily > 0 ? 'text-purple-600 font-bold' : 'text-slate-300'}`}>
+                                              {item.daily > 0 ? item.daily.toLocaleString('en-US') : '-'}
+                                          </td>
+                                          <td className={`px-4 py-3 ${item.mtd > 0 ? 'text-indigo-600 font-bold' : 'text-slate-300'}`}>
+                                              {item.mtd > 0 ? item.mtd.toLocaleString('en-US') : '-'}
+                                          </td>
+                                      </tr>
+                                  ))}
+                              </tbody>
+                              <tfoot className="bg-slate-100 font-bold text-slate-800 border-t border-slate-300 sticky bottom-0">
+                                  <tr>
+                                      <td className="px-4 py-3 text-left">TỔNG CỘNG</td>
+                                      <td className="px-4 py-3 text-purple-800">
+                                          {pthspWorkshopAnalysis.reduce((a,b) => a + b.daily, 0).toLocaleString('en-US')}
+                                      </td>
+                                      <td className="px-4 py-3 text-indigo-800">
+                                          {pthspWorkshopAnalysis.reduce((a,b) => a + b.mtd, 0).toLocaleString('en-US')}
+                                      </td>
+                                  </tr>
+                              </tfoot>
+                           </table>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center text-slate-400 p-8 bg-white rounded-lg border border-slate-200 border-dashed">
+                            <AlertCircle size={32} className="mb-2 opacity-50"/>
+                            <p>Không có dữ liệu phân tích theo Xưởng.</p>
+                        </div>
+                      )}
+                  </div>
+
+                  {/* Part 2: By Project */}
+                  <div className="border-t border-slate-200 pt-6">
+                     <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-3">
+                         <Building2 size={16} className="text-blue-600"/> Chi tiết theo Công trình
+                     </h4>
+                     {pthspProjectAnalysis.length > 0 ? (
+                        <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden flex flex-col max-h-[500px]">
+                           <div className="overflow-y-auto custom-scrollbar flex-1">
+                               <table className="w-full text-sm text-right relative border-collapse">
+                                  <thead className="bg-slate-100 text-slate-700 font-bold uppercase text-xs sticky top-0 z-20 shadow-sm">
+                                      <tr>
+                                          <th className="px-4 py-3 text-left border-b border-slate-200 bg-slate-100">Tên Công Trình</th>
+                                          <th className="px-4 py-3 border-b border-slate-200 text-purple-700 bg-slate-100">
+                                              NGÀY {latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth()+1}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                                          </th>
+                                          <th className="px-4 py-3 border-b border-slate-200 text-indigo-700 bg-slate-100">
+                                              LŨY KẾ THÁNG {latestUnifiedDate ? `${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                                          </th>
+                                      </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100">
+                                      {pthspProjectAnalysis.map((item, idx) => (
+                                          <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                              <td className="px-4 py-3 text-left font-medium text-slate-700">{item.name}</td>
+                                              <td className={`px-4 py-3 ${item.daily > 0 ? 'text-purple-600 font-bold' : 'text-slate-300'}`}>
+                                                  {item.daily > 0 ? item.daily.toLocaleString('en-US') : '-'}
+                                              </td>
+                                              <td className={`px-4 py-3 ${item.mtd > 0 ? 'text-indigo-600 font-bold' : 'text-slate-300'}`}>
+                                                  {item.mtd > 0 ? item.mtd.toLocaleString('en-US') : '-'}
+                                              </td>
+                                          </tr>
+                                      ))}
+                                  </tbody>
+                                  <tfoot className="bg-slate-100 font-bold text-slate-800 border-t border-slate-300 sticky bottom-0 z-20 shadow-[0_-2px_4px_rgba(0,0,0,0.05)]">
+                                      <tr>
+                                          <td className="px-4 py-3 text-left bg-slate-100">TỔNG CỘNG</td>
+                                          <td className="px-4 py-3 text-purple-800 bg-slate-100">
+                                              {pthspProjectAnalysis.reduce((a,b) => a + b.daily, 0).toLocaleString('en-US')}
+                                          </td>
+                                          <td className="px-4 py-3 text-indigo-800 bg-slate-100">
+                                              {pthspProjectAnalysis.reduce((a,b) => a + b.mtd, 0).toLocaleString('en-US')}
+                                          </td>
+                                      </tr>
+                                  </tfoot>
+                               </table>
+                           </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center text-slate-400 p-8 bg-white rounded-lg border border-slate-200 border-dashed">
+                            <AlertCircle size={32} className="mb-2 opacity-50"/>
+                            <p>Không có dữ liệu phân tích theo Công trình.</p>
+                        </div>
+                      )}
+                  </div>
+               </div>
+            </div>
+         </div>
+      )}
+
+      {/* --- INVENTORY DETAIL MODAL --- */}
+      {isInventoryDetailModalOpen && (
+         <div className={`fixed inset-y-0 right-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-all duration-300
+         left-0 ${isSidebarCollapsed ? 'md:left-20' : 'md:left-64'}`}>
+            <div className="bg-white rounded-2xl shadow-2xl w-[90%] max-w-6xl max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-300">
+               <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+                  <div>
+                      <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <Package className="text-teal-600" size={20} />
+                        Chi tiết Nhập kho (Inventory)
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-1">Dữ liệu được tổng hợp từ nguồn Nhập kho</p>
+                  </div>
+                  <button onClick={() => setIsInventoryDetailModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full transition-colors">
+                     <X size={24} />
+                  </button>
+               </div>
+               
+               <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 custom-scrollbar">
+                  {/* Part 1: By Workshop */}
+                  <div className="mb-8">
+                     <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-3">
+                         <Layers size={16} className="text-wood-600"/> Chi tiết theo Xưởng
+                     </h4>
+                     {inventoryWorkshopAnalysis.length > 0 ? (
+                        <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+                           <table className="w-full text-sm text-right">
+                              <thead className="bg-slate-100 text-slate-700 font-bold uppercase text-xs sticky top-0 z-10">
+                                  <tr>
+                                      <th className="px-4 py-3 text-left border-b border-slate-200">Xưởng Chính</th>
+                                      <th className="px-4 py-3 border-b border-slate-200 text-teal-700">
+                                          NGÀY {latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                                      </th>
+                                      <th className="px-4 py-3 border-b border-slate-200 text-indigo-700">
+                                          LŨY KẾ THÁNG {latestUnifiedDate ? `${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                                      </th>
+                                  </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                  {inventoryWorkshopAnalysis.map((item, idx) => (
+                                      <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                          <td className="px-4 py-3 text-left font-medium text-slate-700">{item.name}</td>
+                                          <td className={`px-4 py-3 ${item.daily > 0 ? 'text-teal-600 font-bold' : 'text-slate-300'}`}>
+                                              {item.daily > 0 ? item.daily.toLocaleString('en-US') : '-'}
+                                          </td>
+                                          <td className={`px-4 py-3 ${item.mtd > 0 ? 'text-indigo-600 font-bold' : 'text-slate-300'}`}>
+                                              {item.mtd > 0 ? item.mtd.toLocaleString('en-US') : '-'}
+                                          </td>
+                                      </tr>
+                                  ))}
+                              </tbody>
+                              <tfoot className="bg-slate-100 font-bold text-slate-800 border-t border-slate-300 sticky bottom-0">
+                                  <tr>
+                                      <td className="px-4 py-3 text-left">TỔNG CỘNG</td>
+                                      <td className="px-4 py-3 text-teal-800">
+                                          {inventoryWorkshopAnalysis.reduce((a,b) => a + b.daily, 0).toLocaleString('en-US')}
+                                      </td>
+                                      <td className="px-4 py-3 text-indigo-800">
+                                          {inventoryWorkshopAnalysis.reduce((a,b) => a + b.mtd, 0).toLocaleString('en-US')}
+                                      </td>
+                                  </tr>
+                              </tfoot>
+                           </table>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center text-slate-400 p-8 bg-white rounded-lg border border-slate-200 border-dashed">
+                            <AlertCircle size={32} className="mb-2 opacity-50"/>
+                            <p>Không có dữ liệu phân tích theo Xưởng.</p>
+                        </div>
+                      )}
+                  </div>
+
+                  {/* Part 2: By Project */}
+                  <div className="border-t border-slate-200 pt-6">
+                     <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-3">
+                         <Building2 size={16} className="text-blue-600"/> Chi tiết theo Công trình
+                     </h4>
+                     {inventoryProjectAnalysis.length > 0 ? (
+                        <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden flex flex-col max-h-[500px]">
+                           <div className="overflow-y-auto custom-scrollbar flex-1">
+                               <table className="w-full text-sm text-right relative border-collapse">
+                                  <thead className="bg-slate-100 text-slate-700 font-bold uppercase text-xs sticky top-0 z-20 shadow-sm">
+                                      <tr>
+                                          <th className="px-4 py-3 text-left border-b border-slate-200 bg-slate-100">Tên Công Trình</th>
+                                          <th className="px-4 py-3 border-b border-slate-200 text-teal-700 bg-slate-100">
+                                              NGÀY {latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth()+1}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                                          </th>
+                                          <th className="px-4 py-3 border-b border-slate-200 text-indigo-700 bg-slate-100">
+                                              LŨY KẾ THÁNG {latestUnifiedDate ? `${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                                          </th>
+                                      </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100">
+                                      {inventoryProjectAnalysis.map((item, idx) => (
+                                          <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                              <td className="px-4 py-3 text-left font-medium text-slate-700">{item.name}</td>
+                                              <td className={`px-4 py-3 ${item.daily > 0 ? 'text-teal-600 font-bold' : 'text-slate-300'}`}>
+                                                  {item.daily > 0 ? item.daily.toLocaleString('en-US') : '-'}
+                                              </td>
+                                              <td className={`px-4 py-3 ${item.mtd > 0 ? 'text-indigo-600 font-bold' : 'text-slate-300'}`}>
+                                                  {item.mtd > 0 ? item.mtd.toLocaleString('en-US') : '-'}
+                                              </td>
+                                          </tr>
+                                      ))}
+                                  </tbody>
+                                  <tfoot className="bg-slate-100 font-bold text-slate-800 border-t border-slate-300 sticky bottom-0 z-20 shadow-[0_-2px_4px_rgba(0,0,0,0.05)]">
+                                      <tr>
+                                          <td className="px-4 py-3 text-left bg-slate-100">TỔNG CỘNG</td>
+                                          <td className="px-4 py-3 text-teal-800 bg-slate-100">
+                                              {inventoryProjectAnalysis.reduce((a,b) => a + b.daily, 0).toLocaleString('en-US')}
+                                          </td>
+                                          <td className="px-4 py-3 text-indigo-800 bg-slate-100">
+                                              {inventoryProjectAnalysis.reduce((a,b) => a + b.mtd, 0).toLocaleString('en-US')}
+                                          </td>
+                                      </tr>
+                                  </tfoot>
+                               </table>
+                           </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center text-slate-400 p-8 bg-white rounded-lg border border-slate-200 border-dashed">
+                            <AlertCircle size={32} className="mb-2 opacity-50"/>
+                            <p>Không có dữ liệu phân tích theo Công trình.</p>
+                        </div>
+                      )}
+                  </div>
+               </div>
+            </div>
+         </div>
+      )}
+
     </div>
   );
 };

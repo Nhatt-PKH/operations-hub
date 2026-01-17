@@ -82,6 +82,7 @@ const DashboardWrapper = () => {
             tkbvColumns={context.tkbvColumns}
             pthspData={context.pthspData}
             pthspColumns={context.pthspColumns}
+            isSidebarCollapsed={context.isSidebarCollapsed}
          />;
 };
 
@@ -199,6 +200,7 @@ interface MainLayoutContext {
   tkbvColumns: ColumnDefinition[];
   pthspData: DataRow[];
   pthspColumns: ColumnDefinition[];
+  isSidebarCollapsed: boolean;
 }
 
 // Icon Mapping
@@ -363,7 +365,8 @@ const MainLayout: React.FC = () => {
     tkbvData,
     tkbvColumns,
     pthspData,
-    pthspColumns
+    pthspColumns,
+    isSidebarCollapsed: isCollapsed
   };
 
   return (
