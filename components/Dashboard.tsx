@@ -3,7 +3,7 @@ import { DataRow, ColumnDefinition, TARGET_COLUMN_NAMES } from '../types';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, BarChart, Bar, LabelList
 } from 'recharts';
-import { CheckCircle, Filter, ChevronDown, XCircle as CloseIcon, Table as TableIcon, Layers, LayoutList, Calculator, Hash, Activity, Package, MinusCircle, Box, ChevronLeft, ChevronRight, CheckSquare, Square, Calendar, DollarSign, ListFilter, Import, BarChart2, PieChart, TrendingUp, AlertCircle, ShoppingCart, FileText, ClipboardList, Clock, AlertTriangle, Download, Eye, X, Building2 } from 'lucide-react';
+import { CheckCircle, Filter, ChevronDown, XCircle as CloseIcon, Table as TableIcon, Layers, LayoutList, Calculator, Hash, Activity, Package, MinusCircle, Box, ChevronLeft, ChevronRight, CheckSquare, Square, Calendar, DollarSign, ListFilter, Import, BarChart2, PieChart, TrendingUp, AlertCircle, ShoppingCart, FileText, ClipboardList, Clock, AlertTriangle, Download, Eye, X, Building2, ArrowUp, ArrowDown, ArrowUpDown, Search } from 'lucide-react';
 import { exportToCSV } from '../services/dataService';
 
 interface DashboardProps {
@@ -98,6 +98,13 @@ interface MaterialStatusPivotData {
   grandTotal: number;
 }
 
+// Interface for Analysis Item (used in modals)
+interface AnalysisItem {
+  name: string;
+  daily: number;
+  mtd: number;
+}
+
 const MATERIAL_LIST_COLUMNS = [
   TARGET_COLUMN_NAMES.STATUS,
   TARGET_COLUMN_NAMES.CONG_TRINH,
@@ -118,6 +125,8 @@ const MATERIAL_LIST_COLUMNS = [
   TARGET_COLUMN_NAMES.MATERIAL_CODE,
   TARGET_COLUMN_NAMES.REQUISITIONER
 ];
+
+// --- REUSABLE COMPONENTS ---
 
 const DashboardFilter = ({ 
   label, 
@@ -235,6 +244,267 @@ const MetricSwitcher = ({ current, onChange }: { current: MetricType, onChange: 
   </div>
 );
 
+// New Component: DetailModalTable with Sort AND Filter Functionality
+const DetailModalTable = ({ 
+  data, 
+  title, 
+  icon: Icon,
+  dateLabel,
+  mtdLabel,
+  unitLabel,
+  primaryColorClass, // CSS class for daily column text (e.g. text-pink-600)
+  secondaryColorClass, // CSS class for mtd column text (e.g. text-indigo-600)
+  defaultExcludedKeys = [] // New Prop: Keys to exclude by default
+}: { 
+  data: AnalysisItem[];
+  title: string;
+  icon: React.ElementType;
+  dateLabel: string;
+  mtdLabel: string;
+  unitLabel: string;
+  primaryColorClass: string;
+  secondaryColorClass: string;
+  defaultExcludedKeys?: string[];
+}) => {
+  // Sorting State
+  const [sortConfig, setSortConfig] = useState<{ key: 'name' | 'daily' | 'mtd'; direction: 'asc' | 'desc' }>({ key: 'mtd', direction: 'desc' });
+
+  // Filtering State
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [filterSearch, setFilterSearch] = useState('');
+  const filterRef = useRef<HTMLDivElement>(null);
+
+  // Initialization: Set default selected keys based on data and exclusions
+  useEffect(() => {
+    if (data.length > 0) {
+        // Init logic: Select all EXCEPT items in defaultExcludedKeys
+        const initialSelection = new Set(
+            data.map(item => item.name).filter(name => !defaultExcludedKeys.includes(name))
+        );
+        setSelectedKeys(initialSelection);
+    }
+  }, [data, defaultExcludedKeys]);
+
+  // Click outside to close filter
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+        if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
+            setIsFilterOpen(false);
+        }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Filter Logic
+  const toggleKey = (key: string) => {
+      const newSet = new Set(selectedKeys);
+      if (newSet.has(key)) {
+          newSet.delete(key);
+      } else {
+          newSet.add(key);
+      }
+      setSelectedKeys(newSet);
+  };
+
+  const toggleSelectAll = (filteredOptions: string[]) => {
+      // Check if all filtered options are currently selected
+      const allSelected = filteredOptions.every(k => selectedKeys.has(k));
+      const newSet = new Set(selectedKeys);
+      
+      if (allSelected) {
+          // Deselect all
+          filteredOptions.forEach(k => newSet.delete(k));
+      } else {
+          // Select all
+          filteredOptions.forEach(k => newSet.add(k));
+      }
+      setSelectedKeys(newSet);
+  };
+
+  // 1. Filter Data First
+  const filteredData = useMemo(() => {
+     return data.filter(item => selectedKeys.has(item.name));
+  }, [data, selectedKeys]);
+
+  // 2. Sort Filtered Data
+  const sortedData = useMemo(() => {
+    let sortableItems = [...filteredData];
+    if (sortConfig.key) {
+      sortableItems.sort((a, b) => {
+        const valA = a[sortConfig.key];
+        const valB = b[sortConfig.key];
+
+        if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    return sortableItems;
+  }, [filteredData, sortConfig]);
+
+  // Options for filter menu
+  const allOptions = useMemo(() => data.map(i => i.name).sort(), [data]);
+  const visibleOptions = allOptions.filter(opt => opt.toLowerCase().includes(filterSearch.toLowerCase()));
+
+  const requestSort = (key: 'name' | 'daily' | 'mtd') => {
+    let direction: 'asc' | 'desc' = 'desc'; // Default to desc for numbers
+    if (sortConfig.key === key && sortConfig.direction === 'desc') {
+      direction = 'asc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const SortIcon = ({ columnKey }: { columnKey: string }) => {
+     if (sortConfig.key !== columnKey) return <ArrowUpDown size={12} className="text-slate-300 ml-1 inline opacity-50" />;
+     return sortConfig.direction === 'asc' 
+        ? <ArrowUp size={12} className="text-slate-600 ml-1 inline" /> 
+        : <ArrowDown size={12} className="text-slate-600 ml-1 inline" />;
+  };
+
+  if (data.length === 0) {
+     return (
+        <div className="mb-8">
+            <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-3">
+                <Icon size={16} className="text-wood-600"/> {title}
+            </h4>
+            <div className="flex flex-col items-center justify-center text-slate-400 p-8 bg-white rounded-lg border border-slate-200 border-dashed">
+                <AlertCircle size={32} className="mb-2 opacity-50"/>
+                <p>Không có dữ liệu phân tích.</p>
+            </div>
+        </div>
+     );
+  }
+
+  // Recalculate Totals based on Filtered Data
+  const totalDaily = filteredData.reduce((a,b) => a + b.daily, 0);
+  const totalMtd = filteredData.reduce((a,b) => a + b.mtd, 0);
+
+  return (
+    <div className="mb-8">
+        <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-3">
+            <Icon size={16} className="text-wood-600"/> {title}
+        </h4>
+        <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden flex flex-col max-h-[500px]">
+           <div className="overflow-y-auto custom-scrollbar flex-1 relative">
+               <table className="w-full text-sm text-right relative border-collapse">
+                  <thead className="bg-slate-100 text-slate-700 font-bold uppercase text-xs sticky top-0 z-20 shadow-sm">
+                      <tr>
+                          <th className="px-4 py-3 text-left border-b border-slate-200 bg-slate-100 min-w-[200px] z-30">
+                              <div className="flex items-center justify-between">
+                                  <span 
+                                    className="cursor-pointer hover:text-slate-900 flex items-center"
+                                    onClick={() => requestSort('name')}
+                                  >
+                                      Tên (Name) <SortIcon columnKey="name" />
+                                  </span>
+                                  
+                                  {/* FILTER DROPDOWN */}
+                                  <div className="relative" ref={filterRef}>
+                                      <button 
+                                          onClick={(e) => { e.stopPropagation(); setIsFilterOpen(!isFilterOpen); }}
+                                          className={`p-1 rounded hover:bg-slate-200 transition-colors ${selectedKeys.size !== data.length ? 'text-wood-600 bg-wood-50' : 'text-slate-400'}`}
+                                          title="Lọc dữ liệu"
+                                      >
+                                          <Filter size={14} fill={selectedKeys.size !== data.length ? "currentColor" : "none"} />
+                                      </button>
+                                      
+                                      {isFilterOpen && (
+                                          <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl w-64 z-50 text-left normal-case font-normal flex flex-col animate-in fade-in zoom-in-95 duration-200">
+                                              <div className="p-2 border-b border-slate-100 bg-slate-50 rounded-t-lg">
+                                                  <div className="relative">
+                                                      <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+                                                      <input 
+                                                          type="text" 
+                                                          className="w-full pl-7 pr-2 py-1.5 text-xs border border-slate-300 rounded focus:border-wood-500 focus:outline-none"
+                                                          placeholder="Tìm kiếm..."
+                                                          value={filterSearch}
+                                                          onChange={(e) => setFilterSearch(e.target.value)}
+                                                          autoFocus
+                                                      />
+                                                  </div>
+                                              </div>
+                                              <div className="p-2 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+                                                  <input 
+                                                      type="checkbox" 
+                                                      checked={visibleOptions.every(k => selectedKeys.has(k)) && visibleOptions.length > 0}
+                                                      onChange={() => toggleSelectAll(visibleOptions)}
+                                                      className="rounded border-slate-300 text-wood-600 w-3.5 h-3.5 cursor-pointer"
+                                                  />
+                                                  <span className="text-xs text-slate-700 font-medium">(Chọn tất cả)</span>
+                                              </div>
+                                              <div className="max-h-[200px] overflow-y-auto custom-scrollbar p-1">
+                                                  {visibleOptions.length > 0 ? visibleOptions.map(opt => (
+                                                      <label key={opt} className="flex items-center gap-2 px-2 py-1.5 hover:bg-wood-50 cursor-pointer rounded">
+                                                          <input 
+                                                              type="checkbox"
+                                                              checked={selectedKeys.has(opt)}
+                                                              onChange={() => toggleKey(opt)} 
+                                                              className="rounded border-slate-300 text-wood-600 w-3.5 h-3.5"
+                                                          />
+                                                          <span className="text-xs text-slate-700 truncate">{opt}</span>
+                                                      </label>
+                                                  )) : <div className="p-2 text-xs text-slate-400 text-center">Không tìm thấy</div>}
+                                              </div>
+                                              <div className="p-2 border-t border-slate-100 bg-slate-50 rounded-b-lg flex justify-between items-center text-[10px] text-slate-500">
+                                                  <span>{selectedKeys.size} đã chọn</span>
+                                                  <button onClick={() => setIsFilterOpen(false)} className="text-wood-600 font-bold hover:underline">Đóng</button>
+                                              </div>
+                                          </div>
+                                      )}
+                                  </div>
+                              </div>
+                          </th>
+                          <th 
+                            className={`px-4 py-3 border-b border-slate-200 bg-slate-100 cursor-pointer hover:bg-slate-200 transition-colors ${primaryColorClass.replace('text-', 'text-opacity-70 text-')}`} // Use derived color for header text
+                            onClick={() => requestSort('daily')}
+                          >
+                              {dateLabel} <br/> {unitLabel} <SortIcon columnKey="daily" />
+                          </th>
+                          <th 
+                            className={`px-4 py-3 border-b border-slate-200 bg-slate-100 cursor-pointer hover:bg-slate-200 transition-colors ${secondaryColorClass.replace('text-', 'text-opacity-70 text-')}`}
+                            onClick={() => requestSort('mtd')}
+                          >
+                              {mtdLabel} <br/> {unitLabel} <SortIcon columnKey="mtd" />
+                          </th>
+                      </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                      {sortedData.length > 0 ? sortedData.map((item, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                              <td className="px-4 py-3 text-left font-medium text-slate-700">{item.name}</td>
+                              <td className={`px-4 py-3 ${item.daily > 0 ? `${primaryColorClass} font-bold` : 'text-slate-300'}`}>
+                                  {item.daily > 0 ? item.daily.toLocaleString('en-US') : '-'}
+                              </td>
+                              <td className={`px-4 py-3 ${item.mtd > 0 ? `${secondaryColorClass} font-bold` : 'text-slate-300'}`}>
+                                  {item.mtd > 0 ? item.mtd.toLocaleString('en-US') : '-'}
+                              </td>
+                          </tr>
+                      )) : (
+                         <tr><td colSpan={3} className="p-8 text-center text-slate-400">Đã lọc hết dữ liệu.</td></tr>
+                      )}
+                  </tbody>
+                  <tfoot className="bg-slate-100 font-bold text-slate-800 border-t border-slate-300 sticky bottom-0 z-20 shadow-[0_-2px_4px_rgba(0,0,0,0.05)]">
+                      <tr>
+                          <td className="px-4 py-3 text-left bg-slate-100">TỔNG CỘNG</td>
+                          <td className={`px-4 py-3 bg-slate-100 ${primaryColorClass}`}>
+                              {totalDaily.toLocaleString('en-US')}
+                          </td>
+                          <td className={`px-4 py-3 bg-slate-100 ${secondaryColorClass}`}>
+                              {totalMtd.toLocaleString('en-US')}
+                          </td>
+                      </tr>
+                  </tfoot>
+               </table>
+           </div>
+        </div>
+    </div>
+  );
+};
+
+// --- HELPER FUNCTIONS ---
+
 const parseVNDate = (dateStr: string): Date | null => {
   if (!dateStr || typeof dateStr !== 'string') return null;
   const parts = dateStr.trim().split(/[\/\-\.]/); // Split by /, -, or .
@@ -280,6 +550,8 @@ const getDateRangeDisplay = (filters: string[], options: string[]) => {
     }
     return `(${fmt(minDate)} - ${fmt(maxDate)})`;
 };
+
+// --- MAIN COMPONENT ---
 
 const Dashboard: React.FC<DashboardProps> = ({ 
   productionData, 
@@ -814,7 +1086,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     hexKey: string | undefined, 
     valueKey: string | undefined,
     targetDate: Date | null
-  ) => {
+  ): AnalysisItem[] => {
     if (!targetDate || !dateKey) return [];
     
     const tMonth = targetDate.getMonth();
@@ -1460,7 +1732,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                             : (orderCardValue / 1000).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 1 })}
                                       </h4>
                                       <span className="text-sm font-medium text-pink-400">
-                                        {overviewMetric === 'COUNT' ? 'đơn hàng (HEX)' : 'Tỷ đồng'}
+                                        {overviewMetric === 'COUNT' ? 'đơn hàng (HEX)' : 'Tỷ'}
                                       </span>
                                   </div>
                              </div>
@@ -1498,7 +1770,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                             : (tkbvCardValue / 1000).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 1 })}
                                       </h4>
                                       <span className="text-sm font-medium text-blue-400">
-                                        {overviewMetric === 'COUNT' ? 'bản vẽ (Items)' : 'Tỷ đồng'}
+                                        {overviewMetric === 'COUNT' ? 'bản vẽ (Items)' : 'Tỷ'}
                                       </span>
                                   </div>
                              </div>
@@ -1536,7 +1808,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                             : (pthspCardValue / 1000).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 1 })}
                                       </h4>
                                       <span className="text-sm font-medium text-purple-400">
-                                        {overviewMetric === 'COUNT' ? 'phiếu (Items)' : 'Tỷ đồng'}
+                                        {overviewMetric === 'COUNT' ? 'phiếu (Items)' : 'Tỷ'}
                                       </span>
                                   </div>
                              </div>
@@ -1574,7 +1846,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                             : (inventoryOverviewCardValue / 1000).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 1 })}
                                       </h4>
                                       <span className="text-sm font-medium text-teal-400">
-                                        {overviewMetric === 'COUNT' ? 'items' : 'Tỷ đồng'}
+                                        {overviewMetric === 'COUNT' ? 'items' : 'Tỷ'}
                                       </span>
                                   </div>
                              </div>
@@ -1697,7 +1969,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               <div className="lg:col-span-2 h-[400px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={bottleneckData as any[]}
+                    data={bottleneckData}
                     stackOffset="expand"
                     margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
                   >
@@ -1728,19 +2000,19 @@ const Dashboard: React.FC<DashboardProps> = ({
                     
                     {/* Define Bars with Specific Colors for Stack Order */}
                     <Bar dataKey="Từ 4 tuần trở lên" stackId="a" fill="#ef4444" barSize={30}>
-                        <LabelList dataKey="Từ 4 tuần trở lên" position="center" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(v: any) => v > 0 ? v : ''} />
+                        <LabelList position="center" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(v: any) => v > 0 ? v : ''} />
                     </Bar>
                     <Bar dataKey="3 tuần" stackId="a" fill="#f97316" barSize={30}>
-                        <LabelList dataKey="3 tuần" position="center" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(v: any) => v > 0 ? v : ''} />
+                        <LabelList position="center" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(v: any) => v > 0 ? v : ''} />
                     </Bar>
                     <Bar dataKey="2 tuần" stackId="a" fill="#eab308" barSize={30}>
-                        <LabelList dataKey="2 tuần" position="center" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(v: any) => v > 0 ? v : ''} />
+                        <LabelList position="center" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(v: any) => v > 0 ? v : ''} />
                     </Bar>
                     <Bar dataKey="4-7 NGÀY" stackId="a" fill="#3b82f6" barSize={30}>
-                        <LabelList dataKey="4-7 NGÀY" position="center" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(v: any) => v > 0 ? v : ''} />
+                        <LabelList position="center" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(v: any) => v > 0 ? v : ''} />
                     </Bar>
                     <Bar dataKey="<3 NGÀY" stackId="a" fill="#22c55e" barSize={30}>
-                        <LabelList dataKey="<3 NGÀY" position="center" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(v: any) => v > 0 ? v : ''} />
+                        <LabelList position="center" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(v: any) => v > 0 ? v : ''} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -1889,28 +2161,28 @@ const Dashboard: React.FC<DashboardProps> = ({
                     <div className="h-[350px] w-full bg-slate-50 rounded-lg border border-slate-100 p-3 relative group hover:shadow-md transition-shadow">
                         <div className="absolute top-3 left-4 text-xs font-bold text-slate-600 uppercase z-10 bg-white/80 px-2 py-1 rounded backdrop-blur-sm shadow-sm">SO SÁNH: KH vs TH (Theo Xưởng)</div>
                         <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={combinedWorkshopData as any[]} margin={{ top: 35, right: 30, left: 10, bottom: 50 }}>
+                          <BarChart data={combinedWorkshopData} margin={{ top: 35, right: 30, left: 10, bottom: 50 }}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} />
                             <XAxis dataKey="name" angle={-25} textAnchor="end" height={60} tick={{fontSize: 10}} interval={0}/>
                             <YAxis tickFormatter={formatDecimal} tick={{fontSize: 10}} width={45} domain={['auto', 'auto']} />
                             <RechartsTooltip cursor={{fill: '#f8fafc'}}/>
                             <Legend verticalAlign="top" height={36} iconType="circle" />
-                            <Bar dataKey="khValue" name="Kế hoạch (KH)" fill="#f97316" radius={[4, 4, 0, 0]} barSize={20}><LabelList dataKey="khValue" position="top" formatter={formatDecimal} fontSize={10} fill="#c2410c" /></Bar>
-                            <Bar dataKey="thValue" name="Thực hiện (TH)" fill="#4f46e5" radius={[4, 4, 0, 0]} barSize={20}><LabelList dataKey="thValue" position="top" formatter={formatDecimal} fontSize={10} fill="#4338ca" /></Bar>
+                            <Bar dataKey="khValue" name="Kế hoạch (KH)" fill="#f97316" radius={[4, 4, 0, 0]} barSize={20}><LabelList position="top" formatter={formatDecimal} fontSize={10} fill="#c2410c" /></Bar>
+                            <Bar dataKey="thValue" name="Thực hiện (TH)" fill="#4f46e5" radius={[4, 4, 0, 0]} barSize={20}><LabelList position="top" formatter={formatDecimal} fontSize={10} fill="#4338ca" /></Bar>
                           </BarChart>
                         </ResponsiveContainer>
                     </div>
                     <div className="h-[350px] w-full bg-slate-50 rounded-lg border border-slate-100 p-3 relative group hover:shadow-md transition-shadow">
                         <div className="absolute top-3 left-4 text-xs font-bold text-slate-600 uppercase z-10 bg-white/80 px-2 py-1 rounded backdrop-blur-sm shadow-sm">SO SÁNH: KH vs TH (Theo Công Trình - Top 15)</div>
                         <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={combinedProjectData as any[]} margin={{ top: 35, right: 30, left: 10, bottom: 80 }}>
+                          <BarChart data={combinedProjectData} margin={{ top: 35, right: 30, left: 10, bottom: 80 }}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} />
                             <XAxis dataKey="code" angle={-45} textAnchor="end" height={80} tick={{fontSize: 10}} interval={0}/>
                             <YAxis tickFormatter={formatDecimal} tick={{fontSize: 10}} width={45} domain={['auto', 'auto']} />
                             <RechartsTooltip content={<ProjectChartTooltip />} cursor={{fill: '#f8fafc'}}/>
                             <Legend verticalAlign="top" height={36} iconType="circle" />
-                            <Bar dataKey="khValue" name="Kế hoạch (KH)" fill="#f97316" radius={[4, 4, 0, 0]} barSize={15}><LabelList dataKey="khValue" position="top" formatter={formatDecimal} fontSize={9} fill="#c2410c" /></Bar>
-                            <Bar dataKey="thValue" name="Thực hiện (TH)" fill="#4f46e5" radius={[4, 4, 0, 0]} barSize={15}><LabelList dataKey="thValue" position="top" formatter={formatDecimal} fontSize={9} fill="#4338ca" /></Bar>
+                            <Bar dataKey="khValue" name="Kế hoạch (KH)" fill="#f97316" radius={[4, 4, 0, 0]} barSize={15}><LabelList position="top" formatter={formatDecimal} fontSize={9} fill="#c2410c" /></Bar>
+                            <Bar dataKey="thValue" name="Thực hiện (TH)" fill="#4f46e5" radius={[4, 4, 0, 0]} barSize={15}><LabelList position="top" formatter={formatDecimal} fontSize={9} fill="#4338ca" /></Bar>
                           </BarChart>
                         </ResponsiveContainer>
                     </div>
@@ -2192,112 +2464,31 @@ const Dashboard: React.FC<DashboardProps> = ({
                </div>
                
                <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 custom-scrollbar">
-                  {/* Part 1: By Workshop */}
-                  <div className="mb-8">
-                     <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-3">
-                         <Layers size={16} className="text-wood-600"/> Chi tiết theo Xưởng
-                     </h4>
-                     {ipoWorkshopAnalysis.length > 0 ? (
-                        <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
-                           <table className="w-full text-sm text-right">
-                              <thead className="bg-slate-100 text-slate-700 font-bold uppercase text-xs sticky top-0 z-10">
-                                  <tr>
-                                      <th className="px-4 py-3 text-left border-b border-slate-200">Xưởng Chính</th>
-                                      <th className="px-4 py-3 border-b border-slate-200 text-pink-700">
-                                          NGÀY {latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
-                                      </th>
-                                      <th className="px-4 py-3 border-b border-slate-200 text-indigo-700">
-                                          LŨY KẾ THÁNG {latestUnifiedDate ? `${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
-                                      </th>
-                                  </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100">
-                                  {ipoWorkshopAnalysis.map((item, idx) => (
-                                      <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                                          <td className="px-4 py-3 text-left font-medium text-slate-700">{item.name}</td>
-                                          <td className={`px-4 py-3 ${item.daily > 0 ? 'text-pink-600 font-bold' : 'text-slate-300'}`}>
-                                              {item.daily > 0 ? item.daily.toLocaleString('en-US') : '-'}
-                                          </td>
-                                          <td className={`px-4 py-3 ${item.mtd > 0 ? 'text-indigo-600 font-bold' : 'text-slate-300'}`}>
-                                              {item.mtd > 0 ? item.mtd.toLocaleString('en-US') : '-'}
-                                          </td>
-                                      </tr>
-                                  ))}
-                              </tbody>
-                              <tfoot className="bg-slate-100 font-bold text-slate-800 border-t border-slate-300 sticky bottom-0">
-                                  <tr>
-                                      <td className="px-4 py-3 text-left">TỔNG CỘNG</td>
-                                      <td className="px-4 py-3 text-pink-800">
-                                          {ipoWorkshopAnalysis.reduce((a,b) => a + b.daily, 0).toLocaleString('en-US')}
-                                      </td>
-                                      <td className="px-4 py-3 text-indigo-800">
-                                          {ipoWorkshopAnalysis.reduce((a,b) => a + b.mtd, 0).toLocaleString('en-US')}
-                                      </td>
-                                  </tr>
-                              </tfoot>
-                           </table>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center text-slate-400 p-8 bg-white rounded-lg border border-slate-200 border-dashed">
-                            <AlertCircle size={32} className="mb-2 opacity-50"/>
-                            <p>Không có dữ liệu phân tích theo Xưởng.</p>
-                        </div>
-                      )}
-                  </div>
+                  {/* Part 1: By Workshop - Uses DetailModalTable */}
+                  <DetailModalTable 
+                      data={ipoWorkshopAnalysis}
+                      title="Chi tiết theo Xưởng"
+                      icon={Layers}
+                      dateLabel={`NGÀY ${latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''}`}
+                      mtdLabel={`LŨY KẾ THÁNG ${latestUnifiedDate ? `${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''}`}
+                      unitLabel={overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                      primaryColorClass="text-pink-600"
+                      secondaryColorClass="text-indigo-600"
+                      defaultExcludedKeys={['ABC', 'OTHERS', 'X.ĐB']}
+                  />
 
-                  {/* Part 2: By Project */}
+                  {/* Part 2: By Project - Uses DetailModalTable */}
                   <div className="border-t border-slate-200 pt-6">
-                     <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-3">
-                         <Building2 size={16} className="text-blue-600"/> Chi tiết theo Công trình
-                     </h4>
-                     {ipoProjectAnalysis.length > 0 ? (
-                        <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden flex flex-col max-h-[500px]">
-                           <div className="overflow-y-auto custom-scrollbar flex-1">
-                               <table className="w-full text-sm text-right relative border-collapse">
-                                  <thead className="bg-slate-100 text-slate-700 font-bold uppercase text-xs sticky top-0 z-20 shadow-sm">
-                                      <tr>
-                                          <th className="px-4 py-3 text-left border-b border-slate-200 bg-slate-100">Tên Công Trình</th>
-                                          <th className="px-4 py-3 border-b border-slate-200 text-pink-700 bg-slate-100">
-                                              NGÀY {latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth()+1}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
-                                          </th>
-                                          <th className="px-4 py-3 border-b border-slate-200 text-indigo-700 bg-slate-100">
-                                              LŨY KẾ THÁNG {latestUnifiedDate ? `${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
-                                          </th>
-                                      </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-slate-100">
-                                      {ipoProjectAnalysis.map((item, idx) => (
-                                          <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                                              <td className="px-4 py-3 text-left font-medium text-slate-700">{item.name}</td>
-                                              <td className={`px-4 py-3 ${item.daily > 0 ? 'text-pink-600 font-bold' : 'text-slate-300'}`}>
-                                                  {item.daily > 0 ? item.daily.toLocaleString('en-US') : '-'}
-                                              </td>
-                                              <td className={`px-4 py-3 ${item.mtd > 0 ? 'text-indigo-600 font-bold' : 'text-slate-300'}`}>
-                                                  {item.mtd > 0 ? item.mtd.toLocaleString('en-US') : '-'}
-                                              </td>
-                                          </tr>
-                                      ))}
-                                  </tbody>
-                                  <tfoot className="bg-slate-100 font-bold text-slate-800 border-t border-slate-300 sticky bottom-0 z-20 shadow-[0_-2px_4px_rgba(0,0,0,0.05)]">
-                                      <tr>
-                                          <td className="px-4 py-3 text-left bg-slate-100">TỔNG CỘNG</td>
-                                          <td className="px-4 py-3 text-pink-800 bg-slate-100">
-                                              {ipoProjectAnalysis.reduce((a,b) => a + b.daily, 0).toLocaleString('en-US')}
-                                          </td>
-                                          <td className="px-4 py-3 text-indigo-800 bg-slate-100">
-                                              {ipoProjectAnalysis.reduce((a,b) => a + b.mtd, 0).toLocaleString('en-US')}
-                                          </td>
-                                      </tr>
-                                  </tfoot>
-                               </table>
-                           </div>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center text-slate-400 p-8 bg-white rounded-lg border border-slate-200 border-dashed">
-                            <AlertCircle size={32} className="mb-2 opacity-50"/>
-                            <p>Không có dữ liệu phân tích theo Công trình.</p>
-                        </div>
-                      )}
+                      <DetailModalTable 
+                          data={ipoProjectAnalysis}
+                          title="Chi tiết theo Công trình"
+                          icon={Building2}
+                          dateLabel={`NGÀY ${latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''}`}
+                          mtdLabel={`LŨY KẾ THÁNG ${latestUnifiedDate ? `${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''}`}
+                          unitLabel={overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                          primaryColorClass="text-pink-600"
+                          secondaryColorClass="text-indigo-600"
+                      />
                   </div>
                </div>
             </div>
@@ -2323,112 +2514,31 @@ const Dashboard: React.FC<DashboardProps> = ({
                </div>
                
                <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 custom-scrollbar">
-                  {/* Part 1: By Workshop */}
-                  <div className="mb-8">
-                     <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-3">
-                         <Layers size={16} className="text-wood-600"/> Chi tiết theo Xưởng
-                     </h4>
-                     {tkbvWorkshopAnalysis.length > 0 ? (
-                        <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
-                           <table className="w-full text-sm text-right">
-                              <thead className="bg-slate-100 text-slate-700 font-bold uppercase text-xs sticky top-0 z-10">
-                                  <tr>
-                                      <th className="px-4 py-3 text-left border-b border-slate-200">Xưởng Chính</th>
-                                      <th className="px-4 py-3 border-b border-slate-200 text-blue-700">
-                                          NGÀY {latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
-                                      </th>
-                                      <th className="px-4 py-3 border-b border-slate-200 text-indigo-700">
-                                          LŨY KẾ THÁNG {latestUnifiedDate ? `${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
-                                      </th>
-                                  </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100">
-                                  {tkbvWorkshopAnalysis.map((item, idx) => (
-                                      <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                                          <td className="px-4 py-3 text-left font-medium text-slate-700">{item.name}</td>
-                                          <td className={`px-4 py-3 ${item.daily > 0 ? 'text-blue-600 font-bold' : 'text-slate-300'}`}>
-                                              {item.daily > 0 ? item.daily.toLocaleString('en-US') : '-'}
-                                          </td>
-                                          <td className={`px-4 py-3 ${item.mtd > 0 ? 'text-indigo-600 font-bold' : 'text-slate-300'}`}>
-                                              {item.mtd > 0 ? item.mtd.toLocaleString('en-US') : '-'}
-                                          </td>
-                                      </tr>
-                                  ))}
-                              </tbody>
-                              <tfoot className="bg-slate-100 font-bold text-slate-800 border-t border-slate-300 sticky bottom-0">
-                                  <tr>
-                                      <td className="px-4 py-3 text-left">TỔNG CỘNG</td>
-                                      <td className="px-4 py-3 text-blue-800">
-                                          {tkbvWorkshopAnalysis.reduce((a,b) => a + b.daily, 0).toLocaleString('en-US')}
-                                      </td>
-                                      <td className="px-4 py-3 text-indigo-800">
-                                          {tkbvWorkshopAnalysis.reduce((a,b) => a + b.mtd, 0).toLocaleString('en-US')}
-                                      </td>
-                                  </tr>
-                              </tfoot>
-                           </table>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center text-slate-400 p-8 bg-white rounded-lg border border-slate-200 border-dashed">
-                            <AlertCircle size={32} className="mb-2 opacity-50"/>
-                            <p>Không có dữ liệu phân tích theo Xưởng.</p>
-                        </div>
-                      )}
-                  </div>
+                  {/* Part 1: By Workshop - Uses DetailModalTable */}
+                  <DetailModalTable 
+                      data={tkbvWorkshopAnalysis}
+                      title="Chi tiết theo Xưởng"
+                      icon={Layers}
+                      dateLabel={`NGÀY ${latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''}`}
+                      mtdLabel={`LŨY KẾ THÁNG ${latestUnifiedDate ? `${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''}`}
+                      unitLabel={overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                      primaryColorClass="text-blue-600"
+                      secondaryColorClass="text-indigo-600"
+                      defaultExcludedKeys={['ABC', 'OTHERS', 'X.ĐB']}
+                  />
 
-                  {/* Part 2: By Project */}
+                  {/* Part 2: By Project - Uses DetailModalTable */}
                   <div className="border-t border-slate-200 pt-6">
-                     <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-3">
-                         <Building2 size={16} className="text-blue-600"/> Chi tiết theo Công trình
-                     </h4>
-                     {tkbvProjectAnalysis.length > 0 ? (
-                        <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden flex flex-col max-h-[500px]">
-                           <div className="overflow-y-auto custom-scrollbar flex-1">
-                               <table className="w-full text-sm text-right relative border-collapse">
-                                  <thead className="bg-slate-100 text-slate-700 font-bold uppercase text-xs sticky top-0 z-20 shadow-sm">
-                                      <tr>
-                                          <th className="px-4 py-3 text-left border-b border-slate-200 bg-slate-100">Tên Công Trình</th>
-                                          <th className="px-4 py-3 border-b border-slate-200 text-blue-700 bg-slate-100">
-                                              NGÀY {latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth()+1}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
-                                          </th>
-                                          <th className="px-4 py-3 border-b border-slate-200 text-indigo-700 bg-slate-100">
-                                              LŨY KẾ THÁNG {latestUnifiedDate ? `${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
-                                          </th>
-                                      </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-slate-100">
-                                      {tkbvProjectAnalysis.map((item, idx) => (
-                                          <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                                              <td className="px-4 py-3 text-left font-medium text-slate-700">{item.name}</td>
-                                              <td className={`px-4 py-3 ${item.daily > 0 ? 'text-blue-600 font-bold' : 'text-slate-300'}`}>
-                                                  {item.daily > 0 ? item.daily.toLocaleString('en-US') : '-'}
-                                              </td>
-                                              <td className={`px-4 py-3 ${item.mtd > 0 ? 'text-indigo-600 font-bold' : 'text-slate-300'}`}>
-                                                  {item.mtd > 0 ? item.mtd.toLocaleString('en-US') : '-'}
-                                              </td>
-                                          </tr>
-                                      ))}
-                                  </tbody>
-                                  <tfoot className="bg-slate-100 font-bold text-slate-800 border-t border-slate-300 sticky bottom-0 z-20 shadow-[0_-2px_4px_rgba(0,0,0,0.05)]">
-                                      <tr>
-                                          <td className="px-4 py-3 text-left bg-slate-100">TỔNG CỘNG</td>
-                                          <td className="px-4 py-3 text-blue-800 bg-slate-100">
-                                              {tkbvProjectAnalysis.reduce((a,b) => a + b.daily, 0).toLocaleString('en-US')}
-                                          </td>
-                                          <td className="px-4 py-3 text-indigo-800 bg-slate-100">
-                                              {tkbvProjectAnalysis.reduce((a,b) => a + b.mtd, 0).toLocaleString('en-US')}
-                                          </td>
-                                      </tr>
-                                  </tfoot>
-                               </table>
-                           </div>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center text-slate-400 p-8 bg-white rounded-lg border border-slate-200 border-dashed">
-                            <AlertCircle size={32} className="mb-2 opacity-50"/>
-                            <p>Không có dữ liệu phân tích theo Công trình.</p>
-                        </div>
-                      )}
+                      <DetailModalTable 
+                          data={tkbvProjectAnalysis}
+                          title="Chi tiết theo Công trình"
+                          icon={Building2}
+                          dateLabel={`NGÀY ${latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''}`}
+                          mtdLabel={`LŨY KẾ THÁNG ${latestUnifiedDate ? `${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''}`}
+                          unitLabel={overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                          primaryColorClass="text-blue-600"
+                          secondaryColorClass="text-indigo-600"
+                      />
                   </div>
                </div>
             </div>
@@ -2454,112 +2564,31 @@ const Dashboard: React.FC<DashboardProps> = ({
                </div>
                
                <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 custom-scrollbar">
-                  {/* Part 1: By Workshop */}
-                  <div className="mb-8">
-                     <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-3">
-                         <Layers size={16} className="text-wood-600"/> Chi tiết theo Xưởng
-                     </h4>
-                     {pthspWorkshopAnalysis.length > 0 ? (
-                        <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
-                           <table className="w-full text-sm text-right">
-                              <thead className="bg-slate-100 text-slate-700 font-bold uppercase text-xs sticky top-0 z-10">
-                                  <tr>
-                                      <th className="px-4 py-3 text-left border-b border-slate-200">Xưởng Chính</th>
-                                      <th className="px-4 py-3 border-b border-slate-200 text-purple-700">
-                                          NGÀY {latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
-                                      </th>
-                                      <th className="px-4 py-3 border-b border-slate-200 text-indigo-700">
-                                          LŨY KẾ THÁNG {latestUnifiedDate ? `${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
-                                      </th>
-                                  </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100">
-                                  {pthspWorkshopAnalysis.map((item, idx) => (
-                                      <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                                          <td className="px-4 py-3 text-left font-medium text-slate-700">{item.name}</td>
-                                          <td className={`px-4 py-3 ${item.daily > 0 ? 'text-purple-600 font-bold' : 'text-slate-300'}`}>
-                                              {item.daily > 0 ? item.daily.toLocaleString('en-US') : '-'}
-                                          </td>
-                                          <td className={`px-4 py-3 ${item.mtd > 0 ? 'text-indigo-600 font-bold' : 'text-slate-300'}`}>
-                                              {item.mtd > 0 ? item.mtd.toLocaleString('en-US') : '-'}
-                                          </td>
-                                      </tr>
-                                  ))}
-                              </tbody>
-                              <tfoot className="bg-slate-100 font-bold text-slate-800 border-t border-slate-300 sticky bottom-0">
-                                  <tr>
-                                      <td className="px-4 py-3 text-left">TỔNG CỘNG</td>
-                                      <td className="px-4 py-3 text-purple-800">
-                                          {pthspWorkshopAnalysis.reduce((a,b) => a + b.daily, 0).toLocaleString('en-US')}
-                                      </td>
-                                      <td className="px-4 py-3 text-indigo-800">
-                                          {pthspWorkshopAnalysis.reduce((a,b) => a + b.mtd, 0).toLocaleString('en-US')}
-                                      </td>
-                                  </tr>
-                              </tfoot>
-                           </table>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center text-slate-400 p-8 bg-white rounded-lg border border-slate-200 border-dashed">
-                            <AlertCircle size={32} className="mb-2 opacity-50"/>
-                            <p>Không có dữ liệu phân tích theo Xưởng.</p>
-                        </div>
-                      )}
-                  </div>
+                  {/* Part 1: By Workshop - Uses DetailModalTable */}
+                  <DetailModalTable 
+                      data={pthspWorkshopAnalysis}
+                      title="Chi tiết theo Xưởng"
+                      icon={Layers}
+                      dateLabel={`NGÀY ${latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''}`}
+                      mtdLabel={`LŨY KẾ THÁNG ${latestUnifiedDate ? `${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''}`}
+                      unitLabel={overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                      primaryColorClass="text-purple-600"
+                      secondaryColorClass="text-indigo-600"
+                      defaultExcludedKeys={['ABC', 'OTHERS', 'X.ĐB']}
+                  />
 
-                  {/* Part 2: By Project */}
+                  {/* Part 2: By Project - Uses DetailModalTable */}
                   <div className="border-t border-slate-200 pt-6">
-                     <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-3">
-                         <Building2 size={16} className="text-blue-600"/> Chi tiết theo Công trình
-                     </h4>
-                     {pthspProjectAnalysis.length > 0 ? (
-                        <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden flex flex-col max-h-[500px]">
-                           <div className="overflow-y-auto custom-scrollbar flex-1">
-                               <table className="w-full text-sm text-right relative border-collapse">
-                                  <thead className="bg-slate-100 text-slate-700 font-bold uppercase text-xs sticky top-0 z-20 shadow-sm">
-                                      <tr>
-                                          <th className="px-4 py-3 text-left border-b border-slate-200 bg-slate-100">Tên Công Trình</th>
-                                          <th className="px-4 py-3 border-b border-slate-200 text-purple-700 bg-slate-100">
-                                              NGÀY {latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth()+1}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
-                                          </th>
-                                          <th className="px-4 py-3 border-b border-slate-200 text-indigo-700 bg-slate-100">
-                                              LŨY KẾ THÁNG {latestUnifiedDate ? `${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
-                                          </th>
-                                      </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-slate-100">
-                                      {pthspProjectAnalysis.map((item, idx) => (
-                                          <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                                              <td className="px-4 py-3 text-left font-medium text-slate-700">{item.name}</td>
-                                              <td className={`px-4 py-3 ${item.daily > 0 ? 'text-purple-600 font-bold' : 'text-slate-300'}`}>
-                                                  {item.daily > 0 ? item.daily.toLocaleString('en-US') : '-'}
-                                              </td>
-                                              <td className={`px-4 py-3 ${item.mtd > 0 ? 'text-indigo-600 font-bold' : 'text-slate-300'}`}>
-                                                  {item.mtd > 0 ? item.mtd.toLocaleString('en-US') : '-'}
-                                              </td>
-                                          </tr>
-                                      ))}
-                                  </tbody>
-                                  <tfoot className="bg-slate-100 font-bold text-slate-800 border-t border-slate-300 sticky bottom-0 z-20 shadow-[0_-2px_4px_rgba(0,0,0,0.05)]">
-                                      <tr>
-                                          <td className="px-4 py-3 text-left bg-slate-100">TỔNG CỘNG</td>
-                                          <td className="px-4 py-3 text-purple-800 bg-slate-100">
-                                              {pthspProjectAnalysis.reduce((a,b) => a + b.daily, 0).toLocaleString('en-US')}
-                                          </td>
-                                          <td className="px-4 py-3 text-indigo-800 bg-slate-100">
-                                              {pthspProjectAnalysis.reduce((a,b) => a + b.mtd, 0).toLocaleString('en-US')}
-                                          </td>
-                                      </tr>
-                                  </tfoot>
-                               </table>
-                           </div>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center text-slate-400 p-8 bg-white rounded-lg border border-slate-200 border-dashed">
-                            <AlertCircle size={32} className="mb-2 opacity-50"/>
-                            <p>Không có dữ liệu phân tích theo Công trình.</p>
-                        </div>
-                      )}
+                      <DetailModalTable 
+                          data={pthspProjectAnalysis}
+                          title="Chi tiết theo Công trình"
+                          icon={Building2}
+                          dateLabel={`NGÀY ${latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''}`}
+                          mtdLabel={`LŨY KẾ THÁNG ${latestUnifiedDate ? `${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''}`}
+                          unitLabel={overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                          primaryColorClass="text-purple-600"
+                          secondaryColorClass="text-indigo-600"
+                      />
                   </div>
                </div>
             </div>
@@ -2585,112 +2614,31 @@ const Dashboard: React.FC<DashboardProps> = ({
                </div>
                
                <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 custom-scrollbar">
-                  {/* Part 1: By Workshop */}
-                  <div className="mb-8">
-                     <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-3">
-                         <Layers size={16} className="text-wood-600"/> Chi tiết theo Xưởng
-                     </h4>
-                     {inventoryWorkshopAnalysis.length > 0 ? (
-                        <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
-                           <table className="w-full text-sm text-right">
-                              <thead className="bg-slate-100 text-slate-700 font-bold uppercase text-xs sticky top-0 z-10">
-                                  <tr>
-                                      <th className="px-4 py-3 text-left border-b border-slate-200">Xưởng Chính</th>
-                                      <th className="px-4 py-3 border-b border-slate-200 text-teal-700">
-                                          NGÀY {latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
-                                      </th>
-                                      <th className="px-4 py-3 border-b border-slate-200 text-indigo-700">
-                                          LŨY KẾ THÁNG {latestUnifiedDate ? `${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
-                                      </th>
-                                  </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100">
-                                  {inventoryWorkshopAnalysis.map((item, idx) => (
-                                      <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                                          <td className="px-4 py-3 text-left font-medium text-slate-700">{item.name}</td>
-                                          <td className={`px-4 py-3 ${item.daily > 0 ? 'text-teal-600 font-bold' : 'text-slate-300'}`}>
-                                              {item.daily > 0 ? item.daily.toLocaleString('en-US') : '-'}
-                                          </td>
-                                          <td className={`px-4 py-3 ${item.mtd > 0 ? 'text-indigo-600 font-bold' : 'text-slate-300'}`}>
-                                              {item.mtd > 0 ? item.mtd.toLocaleString('en-US') : '-'}
-                                          </td>
-                                      </tr>
-                                  ))}
-                              </tbody>
-                              <tfoot className="bg-slate-100 font-bold text-slate-800 border-t border-slate-300 sticky bottom-0">
-                                  <tr>
-                                      <td className="px-4 py-3 text-left">TỔNG CỘNG</td>
-                                      <td className="px-4 py-3 text-teal-800">
-                                          {inventoryWorkshopAnalysis.reduce((a,b) => a + b.daily, 0).toLocaleString('en-US')}
-                                      </td>
-                                      <td className="px-4 py-3 text-indigo-800">
-                                          {inventoryWorkshopAnalysis.reduce((a,b) => a + b.mtd, 0).toLocaleString('en-US')}
-                                      </td>
-                                  </tr>
-                              </tfoot>
-                           </table>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center text-slate-400 p-8 bg-white rounded-lg border border-slate-200 border-dashed">
-                            <AlertCircle size={32} className="mb-2 opacity-50"/>
-                            <p>Không có dữ liệu phân tích theo Xưởng.</p>
-                        </div>
-                      )}
-                  </div>
+                  {/* Part 1: By Workshop - Uses DetailModalTable */}
+                  <DetailModalTable 
+                      data={inventoryWorkshopAnalysis}
+                      title="Chi tiết theo Xưởng"
+                      icon={Layers}
+                      dateLabel={`NGÀY ${latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''}`}
+                      mtdLabel={`LŨY KẾ THÁNG ${latestUnifiedDate ? `${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''}`}
+                      unitLabel={overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                      primaryColorClass="text-teal-600"
+                      secondaryColorClass="text-indigo-600"
+                      defaultExcludedKeys={['ABC', 'OTHERS', 'X.ĐB']}
+                  />
 
-                  {/* Part 2: By Project */}
+                  {/* Part 2: By Project - Uses DetailModalTable */}
                   <div className="border-t border-slate-200 pt-6">
-                     <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-3">
-                         <Building2 size={16} className="text-blue-600"/> Chi tiết theo Công trình
-                     </h4>
-                     {inventoryProjectAnalysis.length > 0 ? (
-                        <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden flex flex-col max-h-[500px]">
-                           <div className="overflow-y-auto custom-scrollbar flex-1">
-                               <table className="w-full text-sm text-right relative border-collapse">
-                                  <thead className="bg-slate-100 text-slate-700 font-bold uppercase text-xs sticky top-0 z-20 shadow-sm">
-                                      <tr>
-                                          <th className="px-4 py-3 text-left border-b border-slate-200 bg-slate-100">Tên Công Trình</th>
-                                          <th className="px-4 py-3 border-b border-slate-200 text-teal-700 bg-slate-100">
-                                              NGÀY {latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth()+1}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
-                                          </th>
-                                          <th className="px-4 py-3 border-b border-slate-200 text-indigo-700 bg-slate-100">
-                                              LŨY KẾ THÁNG {latestUnifiedDate ? `${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''} <br/> {overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
-                                          </th>
-                                      </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-slate-100">
-                                      {inventoryProjectAnalysis.map((item, idx) => (
-                                          <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                                              <td className="px-4 py-3 text-left font-medium text-slate-700">{item.name}</td>
-                                              <td className={`px-4 py-3 ${item.daily > 0 ? 'text-teal-600 font-bold' : 'text-slate-300'}`}>
-                                                  {item.daily > 0 ? item.daily.toLocaleString('en-US') : '-'}
-                                              </td>
-                                              <td className={`px-4 py-3 ${item.mtd > 0 ? 'text-indigo-600 font-bold' : 'text-slate-300'}`}>
-                                                  {item.mtd > 0 ? item.mtd.toLocaleString('en-US') : '-'}
-                                              </td>
-                                          </tr>
-                                      ))}
-                                  </tbody>
-                                  <tfoot className="bg-slate-100 font-bold text-slate-800 border-t border-slate-300 sticky bottom-0 z-20 shadow-[0_-2px_4px_rgba(0,0,0,0.05)]">
-                                      <tr>
-                                          <td className="px-4 py-3 text-left bg-slate-100">TỔNG CỘNG</td>
-                                          <td className="px-4 py-3 text-teal-800 bg-slate-100">
-                                              {inventoryProjectAnalysis.reduce((a,b) => a + b.daily, 0).toLocaleString('en-US')}
-                                          </td>
-                                          <td className="px-4 py-3 text-indigo-800 bg-slate-100">
-                                              {inventoryProjectAnalysis.reduce((a,b) => a + b.mtd, 0).toLocaleString('en-US')}
-                                          </td>
-                                      </tr>
-                                  </tfoot>
-                               </table>
-                           </div>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center text-slate-400 p-8 bg-white rounded-lg border border-slate-200 border-dashed">
-                            <AlertCircle size={32} className="mb-2 opacity-50"/>
-                            <p>Không có dữ liệu phân tích theo Công trình.</p>
-                        </div>
-                      )}
+                      <DetailModalTable 
+                          data={inventoryProjectAnalysis}
+                          title="Chi tiết theo Công trình"
+                          icon={Building2}
+                          dateLabel={`NGÀY ${latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''}`}
+                          mtdLabel={`LŨY KẾ THÁNG ${latestUnifiedDate ? `${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''}`}
+                          unitLabel={overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                          primaryColorClass="text-teal-600"
+                          secondaryColorClass="text-indigo-600"
+                      />
                   </div>
                </div>
             </div>

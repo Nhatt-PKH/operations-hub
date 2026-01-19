@@ -366,10 +366,9 @@ const DataGrid: React.FC<DataGridProps> = ({
   }, [searchTerm, primaryFilterValue, advancedFilters, additionalSearchValues]);
 
   // Check if any filter is active
-  const isFilterActive = searchTerm || 
-    primaryFilterValue || 
-    (Object.values(advancedFilters) as string[][]).some(v => v.length > 0) ||
-    (Object.values(additionalSearchValues) as string[]).some(v => v.length > 0);
+  const hasAdvancedFilters = Object.values(advancedFilters).some((v) => v && v.length > 0);
+  const hasAdditionalFilters = Object.values(additionalSearchValues).some((v) => v && v.length > 0);
+  const isFilterActive = searchTerm !== '' || primaryFilterValue !== '' || hasAdvancedFilters || hasAdditionalFilters;
 
   return (
     <div className="flex flex-col h-full bg-white md:rounded-tl-2xl shadow-inner overflow-hidden">
