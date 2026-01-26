@@ -1,9 +1,10 @@
+
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { DataRow, ColumnDefinition, TARGET_COLUMN_NAMES } from '../types';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, BarChart, Bar, LabelList
 } from 'recharts';
-import { CheckCircle, Filter, ChevronDown, XCircle as CloseIcon, Table as TableIcon, Layers, LayoutList, Calculator, Hash, Activity, Package, MinusCircle, Box, ChevronLeft, ChevronRight, CheckSquare, Square, Calendar, DollarSign, ListFilter, Import, BarChart2, PieChart, TrendingUp, AlertCircle, ShoppingCart, FileText, ClipboardList, Clock, AlertTriangle, Download, Eye, X, Building2, ArrowUp, ArrowDown, ArrowUpDown, Search } from 'lucide-react';
+import { CheckCircle, Filter, ChevronDown, XCircle as CloseIcon, Table as TableIcon, Layers, LayoutList, Calculator, Hash, Activity, Package, MinusCircle, Box, ChevronLeft, ChevronRight, CheckSquare, Square, Calendar, DollarSign, ListFilter, Import, BarChart2, PieChart, TrendingUp, AlertCircle, ShoppingCart, FileText, ClipboardList, Clock, AlertTriangle, Download, Eye, X, Building2, ArrowUp, ArrowDown, ArrowUpDown, Search, Target } from 'lucide-react';
 import { exportToCSV } from '../services/dataService';
 
 interface DashboardProps {
@@ -21,17 +22,14 @@ interface DashboardProps {
   tkbvColumns: ColumnDefinition[];
   pthspData: DataRow[];
   pthspColumns: ColumnDefinition[];
+  yearlyPlanData: DataRow[];
+  yearlyPlanColumns: ColumnDefinition[];
   isSidebarCollapsed: boolean;
 }
 
 interface BottleneckItem {
   name: string;
   [key: string]: string | number;
-}
-
-interface BottleneckCount {
-  name: string;
-  count: number;
 }
 
 const STATUS_GROUPS = {
@@ -505,6 +503,25 @@ const DetailModalTable = ({
 
 // --- HELPER FUNCTIONS ---
 
+const parseNumber = (valStr: string | number | null | undefined): number => {
+  try {
+      if (valStr === null || valStr === undefined) return 0;
+      if (typeof valStr === 'number') return isNaN(valStr) ? 0 : valStr;
+      let s = String(valStr).trim().replace(/[^\d.,-]/g, ''); 
+      if (!s) return 0;
+      if ((s.match(/\./g) || []).length > 1) { s = s.replace(/\./g, '').replace(',', '.'); return parseFloat(s) || 0; }
+      if ((s.match(/,/g) || []).length > 1) { s = s.replace(/,/g, ''); return parseFloat(s) || 0; }
+      if (s.indexOf('.') !== -1 && s.indexOf(',') !== -1) {
+          if (s.lastIndexOf('.') < s.lastIndexOf(',')) { s = s.replace(/\./g, '').replace(',', '.'); } else { s = s.replace(/,/g, ''); }
+      } else if (s.indexOf('.') !== -1) {
+          const parts = s.split('.');
+          if (parts.length === 2 && parts[1].length === 3) { s = s.replace('.', ''); } 
+      } else if (s.indexOf(',') !== -1) { s = s.replace(',', '.'); }
+      const res = parseFloat(s);
+      return isNaN(res) ? 0 : res;
+  } catch (e) { return 0; }
+};
+
 const parseVNDate = (dateStr: string): Date | null => {
   if (!dateStr || typeof dateStr !== 'string') return null;
   const parts = dateStr.trim().split(/[\/\-\.]/); // Split by /, -, or .
@@ -568,8 +585,11 @@ const Dashboard: React.FC<DashboardProps> = ({
   tkbvColumns, 
   pthspData, 
   pthspColumns,
+  yearlyPlanData,
+  yearlyPlanColumns,
   isSidebarCollapsed
 }) => {
+  const factoryRevenueRef = useRef<HTMLDivElement>(null);
   const productionStatusRef = useRef<HTMLDivElement>(null); // New Parent Ref
   const pivotWorkshopRef = useRef<HTMLDivElement>(null);
   const pivotProjectRef = useRef<HTMLDivElement>(null);
@@ -666,6 +686,11 @@ const Dashboard: React.FC<DashboardProps> = ({
   const pthspHexKey = findColumnKey(pthspColumns, TARGET_COLUMN_NAMES.HEX); // HEX KEY FOR PTHSP
   const pthspXuongKey = findColumnKey(pthspColumns, TARGET_COLUMN_NAMES.XUONG);
   const pthspCongTrinhKey = findColumnKey(pthspColumns, TARGET_COLUMN_NAMES.CONG_TRINH);
+
+  // Yearly Plan Keys
+  const yearlyPlanAmountKey = findColumnKey(yearlyPlanColumns, TARGET_COLUMN_NAMES.THANH_TIEN_KE_HOACH);
+  const yearlyPlanYearKey = findColumnKey(yearlyPlanColumns, TARGET_COLUMN_NAMES.NAM);
+  const yearlyPlanXuongKey = findColumnKey(yearlyPlanColumns, TARGET_COLUMN_NAMES.XUONG);
 
   // Filters State
   const [filters, setFilters] = useState<{
@@ -895,8 +920,10 @@ const Dashboard: React.FC<DashboardProps> = ({
         const duration = String(row[daysAtCurrentStageKey] || '').trim();
         
         if (status && duration) {
-            if (!agg[status]) agg[status] = { name: status };
-            durationKeys.forEach(k => { if(agg[status][k] === undefined) agg[status][k] = 0; });
+            if (!agg[status]) agg[status] = { name: status } as BottleneckItem;
+            durationKeys.forEach(k => { 
+              if(agg[status][k] === undefined) agg[status][k] = 0; 
+            });
             
             let matchedKey = duration;
             if (duration.toLowerCase().includes('<3 ngày')) matchedKey = '<3 NGÀY';
@@ -905,14 +932,15 @@ const Dashboard: React.FC<DashboardProps> = ({
             else if (duration.toLowerCase().includes('3 tuần')) matchedKey = '3 tuần';
             else if (duration.toLowerCase().includes('4 tuần')) matchedKey = 'Từ 4 tuần trở lên';
 
-            agg[status][matchedKey] = ((agg[status][matchedKey] as number) || 0) + 1;
+            const currentValue = agg[status][matchedKey] as number;
+            agg[status][matchedKey] = (currentValue || 0) + 1;
         }
     });
 
-    return Object.values(agg).sort((a: any, b: any) => a.name.localeCompare(b.name));
+    return Object.values(agg).sort((a, b) => a.name.localeCompare(b.name));
   }, [filteredProductionData, tinhTrangKey, daysAtCurrentStageKey]);
 
-  const topBottlenecks = useMemo<BottleneckCount[]>(() => {
+  const topBottlenecks = useMemo<any[]>(() => {
      if (!tinhTrangKey || !daysAtCurrentStageKey) return [];
      
      const counts: Record<string, number> = {};
@@ -927,31 +955,12 @@ const Dashboard: React.FC<DashboardProps> = ({
 
      return Object.entries(counts)
         .map(([name, count]) => ({ name, count }))
-        .sort((a, b) => b.count - a.count)
+        .sort((a: any, b: any) => b.count - a.count)
         .slice(0, 5); 
   }, [filteredProductionData, tinhTrangKey, daysAtCurrentStageKey]);
 
 
   // --- Helper Functions ---
-
-  const parseNumber = (valStr: string | number | null | undefined): number => {
-    try {
-        if (valStr === null || valStr === undefined) return 0;
-        if (typeof valStr === 'number') return isNaN(valStr) ? 0 : valStr;
-        let s = String(valStr).trim().replace(/[^\d.,-]/g, ''); 
-        if (!s) return 0;
-        if ((s.match(/\./g) || []).length > 1) { s = s.replace(/\./g, '').replace(',', '.'); return parseFloat(s) || 0; }
-        if ((s.match(/,/g) || []).length > 1) { s = s.replace(/,/g, ''); return parseFloat(s) || 0; }
-        if (s.indexOf('.') !== -1 && s.indexOf(',') !== -1) {
-            if (s.lastIndexOf('.') < s.lastIndexOf(',')) { s = s.replace(/\./g, '').replace(',', '.'); } else { s = s.replace(/,/g, ''); }
-        } else if (s.indexOf('.') !== -1) {
-            const parts = s.split('.');
-            if (parts.length === 2 && parts[1].length === 3) { s = s.replace('.', ''); } 
-        } else if (s.indexOf(',') !== -1) { s = s.replace(',', '.'); }
-        const res = parseFloat(s);
-        return isNaN(res) ? 0 : res;
-    } catch (e) { return 0; }
-  };
 
   const formatNumber = (value: number, metric?: MetricType) => {
     if (metric === 'COUNT_HEX') return value.toLocaleString('en-US');
@@ -1588,6 +1597,83 @@ const Dashboard: React.FC<DashboardProps> = ({
     return null;
   };
 
+  // --- FACTORY REVENUE CALCULATION ---
+
+  // Calculate Target Revenue 2026 Dynamically
+  const targetRevenue2026 = useMemo(() => {
+    if (!yearlyPlanAmountKey || !yearlyPlanYearKey || yearlyPlanData.length === 0) return 0;
+    
+    // Filter for Year 2026
+    const rows2026 = yearlyPlanData.filter(row => String(row[yearlyPlanYearKey]).trim() === '2026');
+    
+    // Sum Amount
+    const totalRaw = rows2026.reduce((sum, row) => sum + parseNumber(row[yearlyPlanAmountKey]), 0);
+    
+    // Convert to Billions (Based on assumption that raw data is in Millions, same as Inventory)
+    // If raw data is VNĐ, divide by 1,000,000,000. If raw data is Millions, divide by 1,000.
+    // Based on `factoryRevenueStats` logic below which divides by 1000 for Inventory data to get Billions:
+    return totalRaw / 1000; 
+  }, [yearlyPlanData, yearlyPlanAmountKey, yearlyPlanYearKey]);
+
+  const factoryRevenueStats = useMemo(() => {
+    // Determine keys for Inventory Amount and Year
+    // Using TARGET_COLUMN_NAMES from types.ts ensuring correct mapping
+    // INVENTORY_AMOUNT: 'THÀNH TIỀN NHẬP KHO'
+    // NAM: 'NĂM'
+    const invThanhTienKey = findColumnKey(inventoryColumns, TARGET_COLUMN_NAMES.INVENTORY_AMOUNT);
+    const invNamKey = findColumnKey(inventoryColumns, TARGET_COLUMN_NAMES.NAM);
+
+    if (!invNamKey || !invThanhTienKey) return { actual: 0, percent: 0, totalVND: 0 };
+
+    // Filter specifically for Year 2026 from Inventory Data
+    const rows2026 = inventoryData.filter(row => {
+      const year = String(row[invNamKey] || '').trim();
+      return year === '2026';
+    });
+
+    // Sum Value using 'THÀNH TIỀN NHẬP KHO'
+    const totalVND = rows2026.reduce((sum, row) => sum + parseNumber(row[invThanhTienKey]), 0);
+
+    // Convert to Billions (1 Tỷ = 1,000,000,000)
+    // Assuming input data is in Millions
+    const actualBillion = totalVND / 1000 ;
+
+    const percent = targetRevenue2026 > 0 ? (actualBillion / targetRevenue2026) * 100 : 0;
+
+    return { actual: actualBillion, percent, totalVND };
+  }, [inventoryData, inventoryColumns, targetRevenue2026]);
+
+  const factoryRevenueChartData = useMemo(() => [
+    {
+      name: 'Năm 2026',
+      thucHien: factoryRevenueStats.actual,
+      conLai: Math.max(0, targetRevenue2026 - factoryRevenueStats.actual),
+      fullTarget: targetRevenue2026
+    }
+  ], [factoryRevenueStats.actual, targetRevenue2026]);
+
+  const yearlyPlan2026WorkshopChartData = useMemo(() => {
+    const yearlyPlanXuongKey = findColumnKey(yearlyPlanColumns, TARGET_COLUMN_NAMES.XUONG);
+
+    if (!yearlyPlanAmountKey || !yearlyPlanYearKey || !yearlyPlanXuongKey) return [];
+
+    const agg: Record<string, number> = {};
+    yearlyPlanData.forEach(row => {
+        const year = String(row[yearlyPlanYearKey] || '').trim();
+        if (year === '2026') {
+            const xuong = String(row[yearlyPlanXuongKey] || 'Chưa phân xưởng').trim();
+            // Assuming raw data is in Millions (based on existing logic for targetRevenue2026)
+            // Divide by 1000 to get Billions
+            const val = parseNumber(row[yearlyPlanAmountKey]) / 1000;
+            agg[xuong] = (agg[xuong] || 0) + val;
+        }
+    });
+
+    return Object.entries(agg)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value);
+  }, [yearlyPlanData, yearlyPlanAmountKey, yearlyPlanYearKey, yearlyPlanColumns]);
+
   if (productionData.length === 0 && materialData.length === 0 && khsxData.length === 0) {
     return (
       <div className="flex items-center justify-center h-full text-slate-500">
@@ -1598,6 +1684,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   return (
     <div className="space-y-6 overflow-y-auto h-full custom-scrollbar pb-24 bg-wood-50">
+      {/* ... rest of the JSX ... */}
       
       {/* Sticky Header & Filters */}
       <div className="sticky top-0 z-40 bg-wood-50/95 backdrop-blur-sm border-b border-wood-200 px-4 py-3 shadow-sm">
@@ -1608,6 +1695,9 @@ const Dashboard: React.FC<DashboardProps> = ({
              </div>
              {/* Anchor Buttons */}
              <div className="flex gap-2">
+                <button onClick={() => scrollToRef(factoryRevenueRef)} className="p-1.5 text-xs bg-white border border-slate-200 rounded hover:bg-wood-50 text-slate-600 flex items-center gap-1 shadow-sm" title="Đến Doanh số nhà máy">
+                   <Target size={14} className="text-emerald-600"/> Doanh số
+                </button>
                 <button onClick={() => scrollToRef(orderOverviewRef)} className="p-1.5 text-xs bg-white border border-slate-200 rounded hover:bg-wood-50 text-slate-600 flex items-center gap-1 shadow-sm" title="Đến Tổng quan Đơn hàng">
                    <ShoppingCart size={14} className="text-pink-600"/> Tổng quan
                 </button>
@@ -1674,6 +1764,110 @@ const Dashboard: React.FC<DashboardProps> = ({
       </div>
       
       <div className="px-4 md:px-8 space-y-6">
+
+        {/* --- SECTION: FACTORY REVENUE OVERVIEW (2026) --- */}
+        <div ref={factoryRevenueRef} className="scroll-mt-24 w-full bg-white p-5 rounded-xl shadow-sm border border-emerald-100 flex flex-col">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-b border-emerald-50 pb-4">
+                <div className="flex items-center gap-3">
+                    <div className="bg-emerald-50 p-2 rounded-lg text-emerald-600">
+                        <Target size={24} />
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-bold text-slate-800">TỔNG QUAN DOANH SỐ NHÀ MÁY (Năm 2026)</h3>
+                        <p className="text-xs text-slate-500">Tiến độ thực hiện (Nhập kho) so với chỉ tiêu kế hoạch năm</p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2 bg-emerald-50/50 px-3 py-1.5 rounded-lg border border-emerald-100">
+                     <span className="text-xs text-slate-500 font-medium">Chỉ tiêu Năm:</span>
+                     <span className="text-sm font-bold text-slate-700">{formatNumber(targetRevenue2026)} Tỷ</span>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-center">
+                {/* Left: Summary Stats */}
+                <div className="lg:col-span-1 flex flex-col gap-4">
+                    <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-100">
+                        <p className="text-xs font-bold text-emerald-800 uppercase mb-1">Thực hiện Lũy kế (Nhập kho)</p>
+                        <div className="flex items-baseline gap-2">
+                             <h4 className="text-3xl font-extrabold text-emerald-600">{formatDecimal(factoryRevenueStats.actual)}</h4>
+                             <span className="text-sm font-medium text-emerald-500">Tỷ</span>
+                        </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                             <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Kế hoạch Năm</p>
+                             <div className="flex items-baseline gap-1">
+                                  <h4 className="text-xl font-bold text-slate-700">{formatDecimal(targetRevenue2026)}</h4>
+                                  <span className="text-xs text-slate-400">Tỷ</span>
+                             </div>
+                        </div>
+                        <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                             <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Tỷ lệ Đạt</p>
+                             <div className="flex items-baseline gap-1">
+                                  <h4 className={`text-xl font-bold ${factoryRevenueStats.percent >= 100 ? 'text-emerald-600' : factoryRevenueStats.percent >= 80 ? 'text-teal-600' : factoryRevenueStats.percent >= 50 ? 'text-amber-600' : 'text-red-500'}`}>{formatDecimal(factoryRevenueStats.percent)}%</h4>
+                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Right: Progress Chart (Stacked Horizontal Bar) */}
+                <div className="lg:col-span-2 h-[140px] w-full">
+                     <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                            layout="vertical"
+                            data={factoryRevenueChartData}
+                            margin={{ top: 0, right: 200, left: 0, bottom: 0 }}
+                            barSize={40}
+                        >
+                            <XAxis type="number" hide domain={[0, 'dataMax']} />
+                            <YAxis type="category" dataKey="name" hide />
+                            <RechartsTooltip 
+                                cursor={{fill: 'transparent'}}
+                                formatter={(value: number, name: string) => {
+                                    if (name === 'thucHien') return [formatDecimal(value) + ' Tỷ', 'Thực hiện (Lũy kế)'];
+                                    if (name === 'conLai') return [formatDecimal(value) + ' Tỷ', 'Còn lại'];
+                                    return [value, name];
+                                }}
+                                contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}
+                            />
+                            {/* Stacked Bars: Actual (Green) + Remaining (Gray) */}
+                            <Bar dataKey="thucHien" stackId="a" fill="#10b981" radius={[4, 0, 0, 4]}>
+                                <LabelList dataKey="thucHien" position="center" fill="white" fontSize={12} fontWeight="bold" formatter={(val: number) => formatDecimal(val) + ' Tỷ'} />
+                            </Bar>
+                            <Bar dataKey="conLai" stackId="a" fill="#e2e8f0" radius={[0, 4, 4, 0]}>
+                                <LabelList dataKey="fullTarget" position="right" fill="#64748b" fontSize={12} fontWeight="bold" formatter={(val: number) => 'Mục tiêu: ' + formatDecimal(val) + ' Tỷ'} />
+                            </Bar>
+                        </BarChart>
+                     </ResponsiveContainer>
+                </div>
+            </div>
+
+            {/* NEW CHART: Phân bổ Kế hoạch theo Xưởng */}
+            {yearlyPlan2026WorkshopChartData.length > 0 && (
+                <div className="mt-6 border-t border-emerald-50 pt-6">
+                    <h4 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2 uppercase tracking-wide">
+                        <BarChart2 className="w-4 h-4 text-emerald-600"/> Phân bổ Kế hoạch theo Xưởng (2026)
+                    </h4>
+                    <div className="h-[300px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={yearlyPlan2026WorkshopChartData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                <XAxis dataKey="name" angle={-25} textAnchor="end" height={60} tick={{ fontSize: 10, fill: '#64748b' }} interval={0} />
+                                <YAxis tickFormatter={(val) => formatDecimal(val)} tick={{ fontSize: 10, fill: '#64748b' }} />
+                                <RechartsTooltip 
+                                    formatter={(value: number) => [formatDecimal(value) + ' Tỷ', 'Kế hoạch']}
+                                    contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                                />
+                                <Bar dataKey="value" name="Kế hoạch (Tỷ)" fill="#10b981" radius={[4, 4, 0, 0]} barSize={40}>
+                                    <LabelList dataKey="value" position="top" formatter={(val: number) => formatDecimal(val)} fontSize={10} fill="#059669" />
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            )}
+        </div>
 
         {/* --- MOVED SECTION: ORDER OVERVIEW (RENAMED TO BÁO CÁO TỔNG QUAN) --- */}
         {(orderData.length > 0 || tkbvData.length > 0 || pthspData.length > 0) && (
@@ -1928,7 +2122,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                           <tr key={s} className="hover:bg-slate-50 transition-colors">
                             <td className="px-3 py-2 text-left font-medium text-slate-700 sticky left-0 bg-white hover:bg-slate-50 z-10 whitespace-nowrap border-r border-slate-100">{s}</td>
                             {pivotWorkshopData.uniqueWorkshops.map((w: string) => { 
-                                const val = pivotWorkshopData.matrix[s]?.[w] || 0; 
+                                const val = (pivotWorkshopData?.matrix as any)?.[s]?.[w] || 0; 
                                 return (<td key={w} className={`px-3 py-2 whitespace-nowrap ${val === 0 ? 'text-slate-300' : 'text-slate-600'}`}>{val === 0 ? '-' : formatNumber(val, workshopMetric)}</td>); 
                             })}
                             <td className="px-3 py-2 font-bold text-slate-800 bg-wood-50/50">{formatNumber(pivotWorkshopData.rowTotals[s], workshopMetric)}</td>
@@ -2000,19 +2194,19 @@ const Dashboard: React.FC<DashboardProps> = ({
                     
                     {/* Define Bars with Specific Colors for Stack Order */}
                     <Bar dataKey="Từ 4 tuần trở lên" stackId="a" fill="#ef4444" barSize={30}>
-                        <LabelList position="center" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(v: any) => v > 0 ? v : ''} />
+                        <LabelList dataKey="Từ 4 tuần trở lên" position="center" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(v: number) => v > 0 ? v : ''} />
                     </Bar>
                     <Bar dataKey="3 tuần" stackId="a" fill="#f97316" barSize={30}>
-                        <LabelList position="center" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(v: any) => v > 0 ? v : ''} />
+                        <LabelList dataKey="3 tuần" position="center" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(v: number) => v > 0 ? v : ''} />
                     </Bar>
                     <Bar dataKey="2 tuần" stackId="a" fill="#eab308" barSize={30}>
-                        <LabelList position="center" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(v: any) => v > 0 ? v : ''} />
+                        <LabelList dataKey="2 tuần" position="center" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(v: number) => v > 0 ? v : ''} />
                     </Bar>
                     <Bar dataKey="4-7 NGÀY" stackId="a" fill="#3b82f6" barSize={30}>
-                        <LabelList position="center" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(v: any) => v > 0 ? v : ''} />
+                        <LabelList dataKey="4-7 NGÀY" position="center" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(v: number) => v > 0 ? v : ''} />
                     </Bar>
                     <Bar dataKey="<3 NGÀY" stackId="a" fill="#22c55e" barSize={30}>
-                        <LabelList position="center" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(v: any) => v > 0 ? v : ''} />
+                        <LabelList dataKey="<3 NGÀY" position="center" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(v: number) => v > 0 ? v : ''} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -2053,7 +2247,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <div className="mt-4 pt-4 border-t border-red-200">
                     <div className="flex justify-between items-center text-xs">
                         <span className="text-slate-500">Tổng cảnh báo:</span>
-                        <span className="font-bold text-red-700">{(topBottlenecks as BottleneckCount[]).reduce((a,b) => a + b.count, 0)} items</span>
+                        <span className="font-bold text-red-700">{(topBottlenecks as any[]).reduce((a,b) => a + b.count, 0)} items</span>
                     </div>
                 </div>
               </div>
@@ -2281,7 +2475,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                       <tr key={p} className="hover:bg-slate-50 transition-colors group">
                         <td className="px-3 py-2 text-left font-medium text-slate-700 sticky left-0 bg-white group-hover:bg-slate-50 z-10 whitespace-nowrap border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{p}</td>
                         {pivotProjectData.uniqueStatuses.map((s: string) => { 
-                            const val = pivotProjectData.matrix[p]?.[s] || 0; 
+                            const val = (pivotProjectData?.matrix as any)?.[p]?.[s] || 0; 
                             return (<td key={s} className={`px-3 py-2 whitespace-nowrap ${val === 0 ? 'text-slate-300' : 'text-slate-600'}`}>{val === 0 ? '-' : formatNumber(val, projectMetric)}</td>); 
                         })}
                         <td className="px-3 py-2 font-bold text-slate-800 bg-blue-50/30">{formatNumber(pivotProjectData.rowTotals[p], projectMetric)}</td>
@@ -2368,7 +2562,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 <tr key={group} className="hover:bg-slate-50 transition-colors group">
                                     <td className="px-3 py-2 text-left font-medium text-slate-700 sticky left-0 bg-white group-hover:bg-slate-50 z-10 whitespace-nowrap border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{group}</td>
                                     {pivotMaterialStatusData.uniqueStatuses.map((s: string) => { 
-                                        const val = pivotMaterialStatusData.matrix[group]?.[s] || 0; 
+                                        const val = (pivotMaterialStatusData?.matrix as any)?.[group]?.[s] || 0; 
                                         return (<td key={s} className={`px-3 py-2 whitespace-nowrap ${val === 0 ? 'text-slate-300' : 'text-slate-600'}`}>{val === 0 ? '-' : (matStatusMetric === 'SUM_QTY' ? formatDecimal(val) : formatNumber(val))}</td>); 
                                     })}
                                     <td className="px-3 py-2 font-bold text-slate-800 bg-emerald-50/30">{matStatusMetric === 'SUM_QTY' ? formatDecimal(pivotMaterialStatusData.rowTotals[group]) : formatNumber(pivotMaterialStatusData.rowTotals[group])}</td>
@@ -2445,6 +2639,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
       </div>
 
+      {/* ... (Modals remain unchanged) ... */}
       {/* --- IPO DETAIL MODAL --- */}
       {isIpoDetailModalOpen && (
          <div className={`fixed inset-y-0 right-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-all duration-300

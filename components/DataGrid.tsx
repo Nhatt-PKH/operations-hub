@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { DataRow, ColumnDefinition, TARGET_COLUMN_NAMES } from '../types';
 import { Search, Download, ArrowUpDown, ChevronLeft, ChevronRight, Settings, Check, X, Filter, ChevronDown, RefreshCcw, XCircle, LayoutTemplate } from 'lucide-react';
@@ -78,8 +79,7 @@ const ExcelColumnFilter = ({
         className={`flex items-center justify-between w-full min-w-[160px] max-w-[200px] px-3 py-2 text-sm border rounded-lg bg-white hover:bg-slate-50 transition-colors ${activeCount > 0 ? 'border-wood-500 ring-1 ring-wood-200' : 'border-slate-200'}`}
       >
         <div className="flex flex-col items-start truncate mr-2">
-          {/* UPDATED: Black and Bold Label */}
-          <span className="text-[10px] text-black font-bold uppercase tracking-wider">{label}</span>
+          <span className="text-[9px] text-black font-bold uppercase tracking-wider">{label}</span>
           <span className="truncate font-medium text-slate-700 w-full text-left">
             {activeCount === 0 ? 'Tất cả' : `${activeCount} đã chọn`}
           </span>
@@ -194,8 +194,6 @@ const DataGrid: React.FC<DataGridProps> = ({
 
     // Find all columns that are NOT in the default list
     const allColumnKeys = columns.map(c => c.key);
-    // Normalize comparison to handle newlines
-    const defaultKeys = new Set(defaultVisibleColumns.map(k => k.replace(/\n/g, ' ').trim()));
     
     const columnsToHide = allColumnKeys.filter(key => {
         const normalizedKey = key.replace(/\n/g, ' ').trim();
@@ -233,7 +231,6 @@ const DataGrid: React.FC<DataGridProps> = ({
   };
 
   const primaryKey = useMemo(() => getColumnKey(primarySearchColumn.header), [columns, primarySearchColumn.header]);
-  const tinhTrangKey = useMemo(() => getColumnKey(TARGET_COLUMN_NAMES.TINH_TRANG), [columns]);
 
   // --- Extract Unique Options for Excel Filters ---
   const getUniqueOptions = (key: string) => {
@@ -251,8 +248,6 @@ const DataGrid: React.FC<DataGridProps> = ({
             const match = columns.find(c => c.key === defKey || c.key.replace(/\n/g, ' ').trim() === defKey.replace(/\n/g, ' ').trim());
             if (match) orderedCols.push(match);
         });
-        // Append columns that are visible but not in default list (if any logic allowed it, but here strict default view)
-        // If we strictly follow defaultVisibleColumns, only those are shown.
         return orderedCols;
     }
     // In custom view or empty default, we use CSV order but respect hidden columns
@@ -300,8 +295,9 @@ const DataGrid: React.FC<DataGridProps> = ({
 
     // 4. Dynamic Excel Filters
     Object.entries(advancedFilters).forEach(([header, selectedValues]) => {
-        const safeSelectedValues = selectedValues as string[];
-        if (safeSelectedValues.length > 0) {
+        // Cast as any then to string array to fix 'unknown' errors if inference fails
+        const safeSelectedValues = (selectedValues as any) as string[];
+        if (safeSelectedValues && safeSelectedValues.length > 0) {
             const key = getColumnKey(header);
             if (key) {
                 result = result.filter(row => safeSelectedValues.includes(String(row[key] || '').trim()));
@@ -366,7 +362,8 @@ const DataGrid: React.FC<DataGridProps> = ({
   }, [searchTerm, primaryFilterValue, advancedFilters, additionalSearchValues]);
 
   // Check if any filter is active
-  const hasAdvancedFilters = Object.values(advancedFilters).some((v) => v && v.length > 0);
+  // Fix unknown type errors by explicit casting inside the callback
+  const hasAdvancedFilters = Object.values(advancedFilters).some((v: string[]) => v && v.length > 0);
   const hasAdditionalFilters = Object.values(additionalSearchValues).some((v) => v && v.length > 0);
   const isFilterActive = searchTerm !== '' || primaryFilterValue !== '' || hasAdvancedFilters || hasAdditionalFilters;
 
@@ -489,96 +486,68 @@ const DataGrid: React.FC<DataGridProps> = ({
              </div>
         ))}
 
-        {/* Dynamic Excel Dropdowns */}
-        {filterHeaders.map(header => {
-            const key = getColumnKey(header);
-            if (!key) return null; // Or render placeholder
-
-            const options = getUniqueOptions(key);
-            
-            return (
-                <div key={header} className="flex flex-col gap-1">
-                    <ExcelColumnFilter 
-                        label={header}
-                        options={options}
-                        selectedValues={advancedFilters[header] || ([] as string[])}
-                        onChange={(vals) => setAdvancedFilters(prev => ({ ...prev, [header]: vals }))}
-                    />
-                </div>
-            );
-        })}
-
-        {/* Clear Filters Button */}
         {isFilterActive && (
-          <button 
-            onClick={clearAllFilters}
-            className="flex items-center gap-1.5 px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium border border-red-100 h-[38px] mt-auto ml-auto"
-            title="Xóa tất cả bộ lọc"
-          >
-            <XCircle size={16} />
-            <span>Xóa bộ lọc</span>
-          </button>
+           <button 
+             onClick={clearAllFilters}
+             className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium pb-2 ml-auto sm:ml-0"
+           >
+             <XCircle size={14} /> Xóa bộ lọc
+           </button>
         )}
       </div>
 
-      {/* --- Table Content --- */}
-      <div className="flex-1 overflow-auto custom-scrollbar bg-white">
-        <table className="w-full text-sm text-left text-slate-600 relative">
-          <thead className="text-xs text-slate-700 uppercase bg-wood-50 sticky top-0 z-0">
+      {/* --- Table --- */}
+      <div className="flex-1 overflow-auto custom-scrollbar relative">
+        <table className="w-full text-left border-collapse min-w-[1000px]">
+          <thead className="bg-slate-50 sticky top-0 z-10 text-xs font-bold text-slate-500 uppercase tracking-wider shadow-sm">
             <tr>
-              <th className="px-4 py-3 w-12 text-center border-b border-wood-100">#</th>
+              <th className="px-4 py-3 border-b border-slate-200 w-10 text-center">#</th>
               {visibleColumns.map((col) => (
-                <th 
-                  key={col.key} 
-                  className="px-4 py-3 font-semibold whitespace-nowrap cursor-pointer hover:bg-wood-100 transition-colors group border-b border-wood-100"
-                  onClick={() => handleSort(col.key)}
-                >
-                  <div className="flex items-center gap-1">
-                    {col.label}
-                    <ArrowUpDown className={`w-3 h-3 text-slate-400 ${sortConfig?.key === col.key ? 'text-wood-600' : 'opacity-0 group-hover:opacity-100'}`} />
+                <th key={col.key} className="px-4 py-3 border-b border-slate-200 whitespace-nowrap group">
+                  <div className="flex flex-col gap-1">
+                    <div 
+                      className="flex items-center gap-1 cursor-pointer hover:text-slate-800"
+                      onClick={() => handleSort(col.key)}
+                    >
+                      {col.label}
+                      <ArrowUpDown size={12} className={`text-slate-400 ${sortConfig?.key === col.key ? 'text-wood-600 opacity-100' : 'opacity-0 group-hover:opacity-50'}`} />
+                    </div>
+                    {/* Excel Filter Dropdown */}
+                    {filterHeaders?.includes(col.key) && (
+                       <div onClick={(e) => e.stopPropagation()}>
+                          <ExcelColumnFilter 
+                            label={col.label.length > 15 ? col.label.substring(0,15)+'...' : col.label} // Short label for filter button
+                            options={getUniqueOptions(col.key)}
+                            // Cast as explicit string array to avoid unknown[] error
+                            selectedValues={(advancedFilters[col.key] as string[]) || []}
+                            onChange={(vals) => setAdvancedFilters(prev => ({ ...prev, [col.key]: vals }))}
+                          />
+                       </div>
+                    )}
                   </div>
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-slate-100 bg-white text-sm">
             {paginatedData.length > 0 ? (
-              paginatedData.map((row, index) => (
-                <tr key={index} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-3 text-center text-slate-400 font-mono text-xs">
-                    {(currentPage - 1) * ROWS_PER_PAGE + index + 1}
-                  </td>
+              paginatedData.map((row, rowIndex) => (
+                <tr key={rowIndex} className="hover:bg-wood-50 transition-colors">
+                  <td className="px-4 py-3 text-center text-slate-400 text-xs">{(currentPage - 1) * ROWS_PER_PAGE + rowIndex + 1}</td>
                   {visibleColumns.map((col) => (
-                    <td key={col.key} className="px-4 py-3 whitespace-nowrap">
-                       {/* Contextual Color for Status */}
-                       {col.key === tinhTrangKey ? (
-                           <span className={`px-2 py-1 rounded-full text-xs font-medium inline-block
-                             ${String(row[col.key]).toLowerCase().includes('hoàn thành') || String(row[col.key]).toLowerCase().includes('xong') 
-                                ? 'bg-green-100 text-green-700' 
-                                : String(row[col.key]).toLowerCase().includes('chờ') || String(row[col.key]).toLowerCase().includes('đang') 
-                                ? 'bg-amber-100 text-amber-700'
-                                : String(row[col.key]).toLowerCase().includes('lỗi') || String(row[col.key]).toLowerCase().includes('hủy')
-                                ? 'bg-red-100 text-red-700'
-                                : 'bg-slate-100 text-slate-700'
-                             }`}>
-                             {row[col.key]}
-                           </span>
-                       ) : col.key === primaryKey ? (
-                         <span className="font-mono text-wood-700 font-medium">{row[col.key]}</span>
-                       ) : (
-                           row[col.key]
-                       )}
+                    <td key={col.key} className="px-4 py-3 truncate max-w-xs" title={String(row[col.key] || '')}>
+                      {row[col.key] || ''}
                     </td>
                   ))}
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={visibleColumns.length + 1} className="px-6 py-12 text-center text-slate-500">
-                   <div className="flex flex-col items-center justify-center">
-                     <Filter className="w-10 h-10 text-slate-200 mb-2" />
-                     <p>Không tìm thấy dữ liệu phù hợp với bộ lọc hiện tại.</p>
-                   </div>
+                <td colSpan={visibleColumns.length + 1} className="px-6 py-12 text-center text-slate-400">
+                  <div className="flex flex-col items-center justify-center">
+                    <Search className="w-12 h-12 mb-3 text-slate-200" />
+                    <p>Không tìm thấy dữ liệu phù hợp.</p>
+                  </div>
                 </td>
               </tr>
             )}
@@ -586,32 +555,27 @@ const DataGrid: React.FC<DataGridProps> = ({
         </table>
       </div>
 
-      {/* --- Pagination --- */}
-      <div className="p-4 border-t border-slate-200 bg-white flex items-center justify-between text-sm sticky bottom-0 z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-        <span className="text-slate-500 hidden sm:inline">
-          Hiển thị {(currentPage - 1) * ROWS_PER_PAGE + 1} - {Math.min(currentPage * ROWS_PER_PAGE, processedData.length)} trong tổng số {processedData.length}
-        </span>
-        <span className="text-slate-500 sm:hidden">
-           {processedData.length} kết quả
-        </span>
+      {/* --- Footer / Pagination --- */}
+      <div className="px-4 py-3 border-t border-wood-100 bg-slate-50 flex items-center justify-between text-xs text-slate-500">
+        <div>
+           Hiển thị {Math.min((currentPage - 1) * ROWS_PER_PAGE + 1, processedData.length)} - {Math.min(currentPage * ROWS_PER_PAGE, processedData.length)} trong tổng số {processedData.length} dòng
+        </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-            disabled={currentPage === 1}
-            className="p-1.5 rounded-md hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed border border-slate-200"
-          >
-            <ChevronLeft className="w-5 h-5 text-slate-600" />
-          </button>
-          <span className="px-3 py-1 bg-slate-100 rounded-md font-medium text-slate-700 min-w-[3rem] text-center">
-            {currentPage} / {totalPages || 1}
-          </span>
-          <button
-            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-            disabled={currentPage === totalPages || totalPages === 0}
-            className="p-1.5 rounded-md hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed border border-slate-200"
-          >
-            <ChevronRight className="w-5 h-5 text-slate-600" />
-          </button>
+            <button 
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="p-1.5 border border-slate-200 rounded hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <span className="font-medium">Trang {currentPage} / {Math.max(1, totalPages)}</span>
+            <button 
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages || totalPages === 0}
+              className="p-1.5 border border-slate-200 rounded hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronRight size={16} />
+            </button>
         </div>
       </div>
     </div>

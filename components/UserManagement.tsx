@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { User, APP_VIEWS } from '../types';
 import { userService } from '../services/userService';
@@ -26,6 +27,9 @@ const VIEW_SECTIONS: Record<string, { id: string; label: string }[]> = {
   ],
   inventory: [
     { id: 'inventory_edit', label: 'Điều chỉnh kho' }
+  ],
+  analysis: [
+    { id: 'analysis_export', label: 'Xuất báo cáo KH-TH' }
   ]
 };
 

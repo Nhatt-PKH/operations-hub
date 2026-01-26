@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Link, useLocation, Navigate, Outlet, useOutletContext } from 'react-router-dom';
-import { LayoutDashboard, Table, Menu, RefreshCw, X, Box, Package, LogOut, Shield, User as UserIcon, Key, Loader, Check, AlertTriangle, Calendar, ShoppingCart, Import, FileText, ClipboardList, TrendingUp } from 'lucide-react';
-import { fetchProductionData, fetchMaterialData, fetchKhsxData, fetchOrderData, fetchInventoryData, fetchTkbvData, fetchPthspData } from './services/dataService';
+import { LayoutDashboard, Table, Menu, RefreshCw, X, Box, Package, LogOut, Shield, User as UserIcon, Key, Loader, Check, AlertTriangle, Calendar, ShoppingCart, Import, FileText, ClipboardList, TrendingUp, CalendarRange } from 'lucide-react';
+import { fetchProductionData, fetchMaterialData, fetchKhsxData, fetchOrderData, fetchInventoryData, fetchTkbvData, fetchPthspData, fetchAnalysisData, fetchYearlyPlanData } from './services/dataService';
 import { DataRow, ColumnDefinition, PRODUCTION_DEFAULT_VIEW_COLUMNS, TARGET_COLUMN_NAMES, APP_VIEWS } from './types';
 import Dashboard from './components/Dashboard';
 import DataGrid from './components/DataGrid';
@@ -24,9 +25,11 @@ const App: React.FC = () => {
                {/* Define Routes dynamically might be complex, let's keep specific component mapping but check permissions */}
                <Route path="/" element={<RequirePermission viewId="dashboard"><DashboardWrapper /></RequirePermission>} />
                <Route path="/list" element={<RequirePermission viewId="production"><DataGridWrapper type="production" /></RequirePermission>} />
+               <Route path="/yearly-plan" element={<RequirePermission viewId="yearly_plan_data"><YearlyPlanDataWrapper /></RequirePermission>} />
                <Route path="/orders" element={<RequirePermission viewId="orders"><OrderDataWrapper /></RequirePermission>} />
                <Route path="/inventory" element={<RequirePermission viewId="inventory"><InventoryDataWrapper /></RequirePermission>} />
                <Route path="/khsx" element={<RequirePermission viewId="khsx"><DataGridWrapper type="khsx" /></RequirePermission>} />
+               <Route path="/analysis" element={<RequirePermission viewId="analysis"><AnalysisDataWrapper /></RequirePermission>} />
                <Route path="/tkbv" element={<RequirePermission viewId="tkbv"><TkbvDataWrapper /></RequirePermission>} />
                <Route path="/pthsp" element={<RequirePermission viewId="pthsp"><PthspDataWrapper /></RequirePermission>} />
                <Route path="/materials" element={<RequirePermission viewId="materials"><DataGridWrapper type="material" /></RequirePermission>} />
@@ -82,7 +85,26 @@ const DashboardWrapper = () => {
             tkbvColumns={context.tkbvColumns}
             pthspData={context.pthspData}
             pthspColumns={context.pthspColumns}
+            yearlyPlanData={context.yearlyPlanData}
+            yearlyPlanColumns={context.yearlyPlanColumns}
             isSidebarCollapsed={context.isSidebarCollapsed}
+         />;
+};
+
+// --- Dành riêng cho Dữ liệu kế hoạch năm ---
+const YearlyPlanDataWrapper = () => {
+  const context = useOutletContext<MainLayoutContext>();
+  // Use first available column as primary search if we don't know structure, or hardcode a common one
+  // If columns are not yet loaded, use a placeholder
+  const primarySearchCol = context.yearlyPlanColumns.length > 0 
+      ? { header: context.yearlyPlanColumns[0].key, label: 'Tìm kiếm' }
+      : { header: 'ID', label: 'Tìm kiếm' };
+
+  return <DataGrid 
+            data={context.yearlyPlanData} 
+            columns={context.yearlyPlanColumns} 
+            primarySearchColumn={primarySearchCol}
+            exportFileNamePrefix="du_lieu_ke_hoach_nam"
          />;
 };
 
@@ -144,6 +166,23 @@ const PthspDataWrapper = () => {
          />;
 };
 
+// --- Dành riêng cho Dữ liệu Phân tích KH-TH (New) ---
+const AnalysisDataWrapper = () => {
+  const context = useOutletContext<MainLayoutContext>();
+  
+  return <DataGrid 
+            data={context.analysisData} 
+            columns={context.analysisColumns} 
+            // Generic search on whatever columns exist, trying XUONG or CONG_TRINH as filters if available
+            primarySearchColumn={{ header: TARGET_COLUMN_NAMES.HEX, label: 'Tìm kiếm (HEX/Mã)' }}
+            filterHeaders={[
+                TARGET_COLUMN_NAMES.CONG_TRINH, 
+                TARGET_COLUMN_NAMES.XUONG
+            ]}
+            exportFileNamePrefix="du_lieu_phan_tich_kh_th"
+         />;
+};
+
 const DataGridWrapper = ({ type }: { type: 'production' | 'material' | 'khsx' }) => {
   const context = useOutletContext<MainLayoutContext>();
   
@@ -200,6 +239,10 @@ interface MainLayoutContext {
   tkbvColumns: ColumnDefinition[];
   pthspData: DataRow[];
   pthspColumns: ColumnDefinition[];
+  analysisData: DataRow[];
+  analysisColumns: ColumnDefinition[];
+  yearlyPlanData: DataRow[];
+  yearlyPlanColumns: ColumnDefinition[];
   isSidebarCollapsed: boolean;
 }
 
@@ -213,7 +256,9 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   'ShoppingCart': <ShoppingCart size={20} />,
   'Import': <Import size={20} />,
   'FileText': <FileText size={20} />,
-  'ClipboardList': <ClipboardList size={20} />
+  'ClipboardList': <ClipboardList size={20} />,
+  'TrendingUp': <TrendingUp size={20} />,
+  'CalendarRange': <CalendarRange size={20} />
 };
 
 // Replaced LOGO URL with a component approach
@@ -248,6 +293,12 @@ const MainLayout: React.FC = () => {
   const [pthspData, setPthspData] = useState<DataRow[]>([]);
   const [pthspColumns, setPthspColumns] = useState<ColumnDefinition[]>([]);
 
+  const [analysisData, setAnalysisData] = useState<DataRow[]>([]);
+  const [analysisColumns, setAnalysisColumns] = useState<ColumnDefinition[]>([]);
+
+  const [yearlyPlanData, setYearlyPlanData] = useState<DataRow[]>([]);
+  const [yearlyPlanColumns, setYearlyPlanColumns] = useState<ColumnDefinition[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -270,14 +321,16 @@ const MainLayout: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [prodResult, matResult, khsxResult, orderResult, inventoryResult, tkbvResult, pthspResult] = await Promise.all([
+      const [prodResult, matResult, khsxResult, orderResult, inventoryResult, tkbvResult, pthspResult, analysisResult, yearlyPlanResult] = await Promise.all([
         fetchProductionData(),
         fetchMaterialData(),
         fetchKhsxData(),
         fetchOrderData(),
         fetchInventoryData(),
         fetchTkbvData(),
-        fetchPthspData()
+        fetchPthspData(),
+        fetchAnalysisData(),
+        fetchYearlyPlanData()
       ]);
 
       setProductionData(prodResult.data);
@@ -300,6 +353,12 @@ const MainLayout: React.FC = () => {
 
       setPthspData(pthspResult.data);
       setPthspColumns(pthspResult.columns);
+
+      setAnalysisData(analysisResult.data);
+      setAnalysisColumns(analysisResult.columns);
+
+      setYearlyPlanData(yearlyPlanResult.data);
+      setYearlyPlanColumns(yearlyPlanResult.columns);
 
       setLastUpdated(new Date());
     } catch (err) {
@@ -366,6 +425,10 @@ const MainLayout: React.FC = () => {
     tkbvColumns,
     pthspData,
     pthspColumns,
+    analysisData,
+    analysisColumns,
+    yearlyPlanData,
+    yearlyPlanColumns,
     isSidebarCollapsed: isCollapsed
   };
 

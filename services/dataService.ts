@@ -1,3 +1,5 @@
+
+
 import Papa from 'papaparse';
 import { DataRow, ColumnDefinition, COMMON_DATE_HEADERS, COMMON_STATUS_HEADERS } from '../types';
 
@@ -11,6 +13,8 @@ const ORDER_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS00UiT
 const INVENTORY_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR1Vt60hYowDQsbIDLwz65bZ-pnoO6-9NzlQKLOsE5cEEkRroFoL1ok6w6NMtaFKtts3UPufM0oWkFp/pub?output=csv';
 const TKBV_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR7PQK0D9u-AvxumqNU85jWZjbrl0f2sHDgX3ip_XovvptzjUw6Psaqy5roo44_wuaGfKD5p4aVPRiY/pub?output=csv';
 const PTHSP_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRx1qNl2CLetbdTIQqf0IKgcpmnCIWp68Tl4k0I0DBUqubdmtTabPznXaWjg5zFTtwJout4thJleu9g/pub?output=csv';
+const ANALYSIS_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSLj0AFJBo0UbfWuMsdw3761yTTSioN9Zt0Hrwoe2PZisZ6KtLRfCER9FTuuxGY8HJmv-tPDJdQsrYV/pub?output=csv';
+const YEARLY_PLAN_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTzOpOduvkY8V2GXeCUjr0LpLS25wJl6K2NsMgNZi_NTNYejaejy_EnlDoVunqMjU68jfNWNE7s5stR/pub?output=csv';
 
 const fetchFromUrl = async (url: string): Promise<{ data: DataRow[]; columns: ColumnDefinition[] }> => {
   try {
@@ -65,6 +69,8 @@ export const fetchOrderData = () => fetchFromUrl(ORDER_SHEET_URL);
 export const fetchInventoryData = () => fetchFromUrl(INVENTORY_SHEET_URL);
 export const fetchTkbvData = () => fetchFromUrl(TKBV_SHEET_URL);
 export const fetchPthspData = () => fetchFromUrl(PTHSP_SHEET_URL);
+export const fetchAnalysisData = () => fetchFromUrl(ANALYSIS_SHEET_URL);
+export const fetchYearlyPlanData = () => fetchFromUrl(YEARLY_PLAN_SHEET_URL);
 
 const detectColumnType = (header: string, data: DataRow[]): 'string' | 'number' | 'date' => {
   // Heuristic 1: Check header name

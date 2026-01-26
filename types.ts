@@ -1,4 +1,5 @@
 
+
 export const TARGET_COLUMN_NAMES = {
 
   HEX: 'HEX', 
@@ -112,9 +113,11 @@ export interface AppView {
 export const APP_VIEWS: AppView[] = [
   { id: 'dashboard', path: '/', label: 'Tổng quan', iconName: 'LayoutDashboard' },
   { id: 'production', path: '/list', label: 'Dữ liệu Sản xuất', iconName: 'Table' },
+  { id: 'yearly_plan_data', path: '/yearly-plan', label: 'Dữ liệu kế hoạch năm', iconName: 'CalendarRange' },
   { id: 'orders', path: '/orders', label: 'Dữ liệu Đơn hàng tổng', iconName: 'ShoppingCart' },
   { id: 'inventory', path: '/inventory', label: 'Dữ liệu Nhập kho', iconName: 'Import' },
   { id: 'khsx', path: '/khsx', label: 'Kế hoạch SX', iconName: 'Calendar' },
+  { id: 'analysis', path: '/analysis', label: 'Dữ liệu Phân tích KH-TH', iconName: 'TrendingUp' },
   { id: 'tkbv', path: '/tkbv', label: 'Dữ liệu TKBV', iconName: 'FileText' },
   { id: 'pthsp', path: '/pthsp', label: 'Dữ liệu PTHSP', iconName: 'ClipboardList' },
   { id: 'materials', path: '/materials', label: 'Vật tư', iconName: 'Package' },
