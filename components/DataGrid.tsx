@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { DataRow, ColumnDefinition, TARGET_COLUMN_NAMES } from '../types';
 import { Search, Download, ArrowUpDown, ChevronLeft, ChevronRight, Settings, Check, X, Filter, ChevronDown, XCircle, LayoutTemplate } from 'lucide-react';
@@ -293,8 +294,8 @@ const DataGrid: React.FC<DataGridProps> = ({
 
     // 4. Dynamic Excel Filters
     Object.entries(advancedFilters).forEach(([header, selectedValues]) => {
-        // Safe access to array property
-        const safeSelectedValues = selectedValues as any;
+        // Safe access to array property - Fix: explicit cast for TS
+        const safeSelectedValues = selectedValues as string[];
         if (Array.isArray(safeSelectedValues) && safeSelectedValues.length > 0) {
             const key = getColumnKey(header);
             if (key) {
@@ -514,7 +515,7 @@ const DataGrid: React.FC<DataGridProps> = ({
                        <ExcelColumnFilter 
                           label="Lọc"
                           options={getUniqueOptions(col.key)}
-                          selectedValues={(advancedFilters[col.key] as string[]) || []}
+                          selectedValues={(advancedFilters[col.key] as string[]) ?? []}
                           onChange={(vals) => setAdvancedFilters(prev => ({ ...prev, [col.key]: vals }))}
                        />
                     )}

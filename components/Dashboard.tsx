@@ -241,7 +241,7 @@ const MetricSwitcher = ({ current, onChange }: { current: MetricType, onChange: 
   </div>
 );
 
-// New Component: DetailModalTable with Sort AND Filter Functionality
+// ... (DetailModalTable component remains the same) ...
 const DetailModalTable = ({ 
   data, 
   title, 
@@ -249,9 +249,9 @@ const DetailModalTable = ({
   dateLabel,
   mtdLabel,
   unitLabel,
-  primaryColorClass, // CSS class for daily column text (e.g. text-pink-600)
-  secondaryColorClass, // CSS class for mtd column text (e.g. text-indigo-600)
-  defaultExcludedKeys = [] // New Prop: Keys to exclude by default
+  primaryColorClass, 
+  secondaryColorClass,
+  defaultExcludedKeys = [] 
 }: { 
   data: AnalysisItem[];
   title: string;
@@ -263,19 +263,14 @@ const DetailModalTable = ({
   secondaryColorClass: string;
   defaultExcludedKeys?: string[];
 }) => {
-  // Sorting State
   const [sortConfig, setSortConfig] = useState<{ key: 'name' | 'daily' | 'mtd'; direction: 'asc' | 'desc' }>({ key: 'mtd', direction: 'desc' });
-
-  // Filtering State
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [filterSearch, setFilterSearch] = useState('');
   const filterRef = useRef<HTMLDivElement>(null);
 
-  // Initialization: Set default selected keys based on data and exclusions
   useEffect(() => {
     if (data.length > 0) {
-        // Init logic: Select all EXCEPT items in defaultExcludedKeys
         const initialSelection = new Set(
             data.map(item => item.name).filter(name => !defaultExcludedKeys.includes(name))
         );
@@ -283,7 +278,6 @@ const DetailModalTable = ({
     }
   }, [data, defaultExcludedKeys]);
 
-  // Click outside to close filter
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
         if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
@@ -294,7 +288,6 @@ const DetailModalTable = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Filter Logic
   const toggleKey = (key: string) => {
       const newSet = new Set(selectedKeys);
       if (newSet.has(key)) {
@@ -306,33 +299,26 @@ const DetailModalTable = ({
   };
 
   const toggleSelectAll = (filteredOptions: string[]) => {
-      // Check if all filtered options are currently selected
       const allSelected = filteredOptions.every(k => selectedKeys.has(k));
       const newSet = new Set(selectedKeys);
-      
       if (allSelected) {
-          // Deselect all
           filteredOptions.forEach(k => newSet.delete(k));
       } else {
-          // Select all
           filteredOptions.forEach(k => newSet.add(k));
       }
       setSelectedKeys(newSet);
   };
 
-  // 1. Filter Data First
   const filteredData = useMemo(() => {
      return data.filter(item => selectedKeys.has(item.name));
   }, [data, selectedKeys]);
 
-  // 2. Sort Filtered Data
   const sortedData = useMemo(() => {
     let sortableItems = [...filteredData];
     if (sortConfig.key) {
       sortableItems.sort((a, b) => {
         const valA = a[sortConfig.key];
         const valB = b[sortConfig.key];
-
         if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
         if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
         return 0;
@@ -341,12 +327,11 @@ const DetailModalTable = ({
     return sortableItems;
   }, [filteredData, sortConfig]);
 
-  // Options for filter menu
   const allOptions = useMemo(() => data.map(i => i.name).sort(), [data]);
   const visibleOptions = allOptions.filter(opt => opt.toLowerCase().includes(filterSearch.toLowerCase()));
 
   const requestSort = (key: 'name' | 'daily' | 'mtd') => {
-    let direction: 'asc' | 'desc' = 'desc'; // Default to desc for numbers
+    let direction: 'asc' | 'desc' = 'desc';
     if (sortConfig.key === key && sortConfig.direction === 'desc') {
       direction = 'asc';
     }
@@ -374,7 +359,6 @@ const DetailModalTable = ({
      );
   }
 
-  // Recalculate Totals based on Filtered Data
   const totalDaily = filteredData.reduce((a,b) => a + b.daily, 0);
   const totalMtd = filteredData.reduce((a,b) => a + b.mtd, 0);
 
@@ -396,8 +380,6 @@ const DetailModalTable = ({
                                   >
                                       Tên (Name) <SortIcon columnKey="name" />
                                   </span>
-                                  
-                                  {/* FILTER DROPDOWN */}
                                   <div className="relative" ref={filterRef}>
                                       <button 
                                           onClick={(e) => { e.stopPropagation(); setIsFilterOpen(!isFilterOpen); }}
@@ -406,7 +388,6 @@ const DetailModalTable = ({
                                       >
                                           <Filter size={14} fill={selectedKeys.size !== data.length ? "currentColor" : "none"} />
                                       </button>
-                                      
                                       {isFilterOpen && (
                                           <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl w-64 z-50 text-left normal-case font-normal flex flex-col animate-in fade-in zoom-in-95 duration-200">
                                               <div className="p-2 border-b border-slate-100 bg-slate-50 rounded-t-lg">
@@ -454,7 +435,7 @@ const DetailModalTable = ({
                               </div>
                           </th>
                           <th 
-                            className={`px-4 py-3 border-b border-slate-200 bg-slate-100 cursor-pointer hover:bg-slate-200 transition-colors ${primaryColorClass.replace('text-', 'text-opacity-70 text-')}`} // Use derived color for header text
+                            className={`px-4 py-3 border-b border-slate-200 bg-slate-100 cursor-pointer hover:bg-slate-200 transition-colors ${primaryColorClass.replace('text-', 'text-opacity-70 text-')}`}
                             onClick={() => requestSort('daily')}
                           >
                               {dateLabel} <br/> {unitLabel} <SortIcon columnKey="daily" />
@@ -500,7 +481,7 @@ const DetailModalTable = ({
   );
 };
 
-// --- HELPER FUNCTIONS ---
+// ... (Helper functions remain the same) ...
 
 const parseNumber = (valStr: string | number | null | undefined): number => {
   try {
@@ -523,7 +504,7 @@ const parseNumber = (valStr: string | number | null | undefined): number => {
 
 const parseVNDate = (dateStr: string): Date | null => {
   if (!dateStr || typeof dateStr !== 'string') return null;
-  const parts = dateStr.trim().split(/[\/\-\.]/); // Split by /, -, or .
+  const parts = dateStr.trim().split(/[\/\-\.]/);
   if (parts.length === 3) {
     const day = parseInt(parts[0], 10);
     const month = parseInt(parts[1], 10) - 1; 
@@ -545,29 +526,19 @@ const diffDays = (date1: Date, date2: Date): number => {
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 };
 
-// Helper for Date Range Display
 const getDateRangeDisplay = (filters: string[], options: string[]) => {
     const datesToUse = filters.length > 0 ? filters : options;
     if (datesToUse.length === 0) return '';
-    
-    const validDates = datesToUse
-        .map(d => parseVNDate(d))
-        .filter((d): d is Date => d !== null);
-
+    const validDates = datesToUse.map(d => parseVNDate(d)).filter((d): d is Date => d !== null);
     if (validDates.length === 0) return '';
-
     const minDate = new Date(Math.min(...validDates.map(d => d.getTime())));
     const maxDate = new Date(Math.max(...validDates.map(d => d.getTime())));
-
     const fmt = (d: Date) => `0${d.getDate()}`.slice(-2) + '/' + `0${d.getMonth() + 1}`.slice(-2) + '/' + d.getFullYear();
-
-    if (minDate.getTime() === maxDate.getTime()) {
-        return `(${fmt(minDate)})`;
-    }
+    if (minDate.getTime() === maxDate.getTime()) return `(${fmt(minDate)})`;
     return `(${fmt(minDate)} - ${fmt(maxDate)})`;
 };
 
-// --- MAIN COMPONENT ---
+// ... (Dashboard Component) ...
 
 const Dashboard: React.FC<DashboardProps> = ({ 
   productionData, 
@@ -584,12 +555,13 @@ const Dashboard: React.FC<DashboardProps> = ({
   tkbvColumns, 
   pthspData, 
   pthspColumns,
-  yearlyPlanData,
+  yearlyPlanData, 
   yearlyPlanColumns,
   isSidebarCollapsed
 }) => {
+  // ... (Same state and refs) ...
   const factoryRevenueRef = useRef<HTMLDivElement>(null);
-  const productionStatusRef = useRef<HTMLDivElement>(null); // New Parent Ref
+  const productionStatusRef = useRef<HTMLDivElement>(null);
   const pivotWorkshopRef = useRef<HTMLDivElement>(null);
   const pivotProjectRef = useRef<HTMLDivElement>(null);
   const pivotMaterialRef = useRef<HTMLDivElement>(null);
@@ -603,7 +575,6 @@ const Dashboard: React.FC<DashboardProps> = ({
   
   const hasInitializedOverviewDate = useRef(false);
 
-  // Modal State
   const [isIpoDetailModalOpen, setIsIpoDetailModalOpen] = useState(false);
   const [isTkbvDetailModalOpen, setIsTkbvDetailModalOpen] = useState(false);
   const [isPthspDetailModalOpen, setIsPthspDetailModalOpen] = useState(false);
@@ -616,7 +587,6 @@ const Dashboard: React.FC<DashboardProps> = ({
     return match ? match.key : target;
   };
 
-  // Production Keys
   const hexKey = findColumnKey(productionColumns, TARGET_COLUMN_NAMES.HEX);
   const tinhTrangKey = findColumnKey(productionColumns, TARGET_COLUMN_NAMES.TINH_TRANG);
   const tinhTrangIpoKey = findColumnKey(productionColumns, TARGET_COLUMN_NAMES.TINH_TRANG_IPO); 
@@ -627,12 +597,10 @@ const Dashboard: React.FC<DashboardProps> = ({
   const hangMucKey = findColumnKey(productionColumns, TARGET_COLUMN_NAMES.TEN_HANG_MUC);
   const daysAtCurrentStageKey = findColumnKey(productionColumns, TARGET_COLUMN_NAMES.SO_NGAY_CD_HIEN_TAI);
   
-  // NEW KEYS for Summary
   const triGiaDonHangTongKey = findColumnKey(productionColumns, TARGET_COLUMN_NAMES.TRI_GIA_DON_HANG_TONG);
   const thanhTienTinhPhieuKey = findColumnKey(productionColumns, TARGET_COLUMN_NAMES.THANH_TIEN_TINH_PHIEU);
   const thanhTienNhapKhoKey = findColumnKey(productionColumns, TARGET_COLUMN_NAMES.THANH_TIEN_NHAP_KHO);
 
-  // Material Keys
   const matCongTrinhKey = findColumnKey(materialColumns, TARGET_COLUMN_NAMES.CONG_TRINH);
   const matNhomVtKey = findColumnKey(materialColumns, TARGET_COLUMN_NAMES.NHOM_VT);
   const matSlYeuCauKey = findColumnKey(materialColumns, TARGET_COLUMN_NAMES.SL_YEU_CAU);
@@ -644,7 +612,6 @@ const Dashboard: React.FC<DashboardProps> = ({
   const matEstDateKey = findColumnKey(materialColumns, TARGET_COLUMN_NAMES.EST_DELIVERY);
   const matPrLineKey = findColumnKey(materialColumns, TARGET_COLUMN_NAMES.PR_ITEM);
 
-  // KHSX Keys
   const khsxXuongKey = findColumnKey(khsxColumns, TARGET_COLUMN_NAMES.XUONG);
   const khsxCongTrinhKey = findColumnKey(khsxColumns, TARGET_COLUMN_NAMES.CONG_TRINH);
   const khsxMaCongTrinhKey = findColumnKey(khsxColumns, TARGET_COLUMN_NAMES.MA_CONG_TRINH);
@@ -654,7 +621,6 @@ const Dashboard: React.FC<DashboardProps> = ({
   const khsxThangKey = findColumnKey(khsxColumns, TARGET_COLUMN_NAMES.THANG);
   const khsxNgayKey = findColumnKey(khsxColumns, TARGET_COLUMN_NAMES.NGAY);
 
-  // Inventory Keys
   const invThanhTienKey = findColumnKey(inventoryColumns, TARGET_COLUMN_NAMES.INVENTORY_AMOUNT);
   const invXuongKey = findColumnKey(inventoryColumns, TARGET_COLUMN_NAMES.XUONG);
   const invCongTrinhKey = findColumnKey(inventoryColumns, TARGET_COLUMN_NAMES.CONG_TRINH);
@@ -663,35 +629,30 @@ const Dashboard: React.FC<DashboardProps> = ({
   const invThangKey = findColumnKey(inventoryColumns, TARGET_COLUMN_NAMES.THANG);
   const invNgayKey = findColumnKey(inventoryColumns, TARGET_COLUMN_NAMES.NGAY);
   const invDateKey = findColumnKey(inventoryColumns, TARGET_COLUMN_NAMES.DATE);
-  const invHexKey = findColumnKey(inventoryColumns, TARGET_COLUMN_NAMES.HEX); // HEX KEY FOR INVENTORY
+  const invHexKey = findColumnKey(inventoryColumns, TARGET_COLUMN_NAMES.HEX);
 
-  // Order Keys
   const orderHexKey = findColumnKey(orderColumns, TARGET_COLUMN_NAMES.HEX);
   const orderDateKey = findColumnKey(orderColumns, TARGET_COLUMN_NAMES.NGAY_NHAN_TU_PM);
   const orderValueKey = findColumnKey(orderColumns, TARGET_COLUMN_NAMES.TRI_GIA_DON_HANG_TONG);
-  const orderXuongKey = findColumnKey(orderColumns, TARGET_COLUMN_NAMES.XUONG); // Needed for modal analysis
-  const orderCongTrinhKey = findColumnKey(orderColumns, TARGET_COLUMN_NAMES.CONG_TRINH); // Needed for modal analysis by project
+  const orderXuongKey = findColumnKey(orderColumns, TARGET_COLUMN_NAMES.XUONG);
+  const orderCongTrinhKey = findColumnKey(orderColumns, TARGET_COLUMN_NAMES.CONG_TRINH);
 
-  // TKBV Keys
   const tkbvDateKey = findColumnKey(tkbvColumns, TARGET_COLUMN_NAMES.NGAY_NHAN);
   const tkbvValueKey = findColumnKey(tkbvColumns, TARGET_COLUMN_NAMES.TRI_GIA_DON_HANG_TONG); 
-  const tkbvHexKey = findColumnKey(tkbvColumns, TARGET_COLUMN_NAMES.HEX); // HEX KEY FOR TKBV
+  const tkbvHexKey = findColumnKey(tkbvColumns, TARGET_COLUMN_NAMES.HEX);
   const tkbvXuongKey = findColumnKey(tkbvColumns, TARGET_COLUMN_NAMES.XUONG);
   const tkbvCongTrinhKey = findColumnKey(tkbvColumns, TARGET_COLUMN_NAMES.CONG_TRINH);
 
-  // PTHSP Keys
   const pthspDateKey = findColumnKey(pthspColumns, TARGET_COLUMN_NAMES.NGAY_HOAN_THANH);
   const pthspValueKey = findColumnKey(pthspColumns, TARGET_COLUMN_NAMES.TRI_GIA_DON_HANG_TONG);
-  const pthspHexKey = findColumnKey(pthspColumns, TARGET_COLUMN_NAMES.HEX); // HEX KEY FOR PTHSP
+  const pthspHexKey = findColumnKey(pthspColumns, TARGET_COLUMN_NAMES.HEX);
   const pthspXuongKey = findColumnKey(pthspColumns, TARGET_COLUMN_NAMES.XUONG);
   const pthspCongTrinhKey = findColumnKey(pthspColumns, TARGET_COLUMN_NAMES.CONG_TRINH);
 
-  // Yearly Plan Keys
   const yearlyPlanAmountKey = findColumnKey(yearlyPlanColumns, TARGET_COLUMN_NAMES.THANH_TIEN_KE_HOACH);
   const yearlyPlanYearKey = findColumnKey(yearlyPlanColumns, TARGET_COLUMN_NAMES.NAM);
   const yearlyPlanXuongKey = findColumnKey(yearlyPlanColumns, TARGET_COLUMN_NAMES.XUONG);
 
-  // Filters State
   const [filters, setFilters] = useState<{
     congTrinh: string[];
     xuong: string[];
@@ -704,44 +665,31 @@ const Dashboard: React.FC<DashboardProps> = ({
     tinhTrangIpo: ['SẢN XUẤT'] 
   });
 
-  // --- UNIFIED KHSX & INVENTORY FILTERS ---
   const [unifiedTimeFilters, setUnifiedTimeFilters] = useState<{
     nam: string[];
     thang: string[];
     ngay: string[];
   }>({
     nam: [new Date().getFullYear().toString()],
-    thang: [(new Date().getMonth() + 1).toString()], // Default to current month
+    thang: [(new Date().getMonth() + 1).toString()],
     ngay: []
   });
 
-  // Specific Filter for KHSX
   const [khsxPhanLoaiFilter, setKhsxPhanLoaiFilter] = useState<string[]>(['THÁNG 01/2026']);
-
-  // UNIFIED OVERVIEW DATE FILTER
   const [overviewDateFilters, setOverviewDateFilters] = useState<string[]>([]);
-  
-  // Single Global Metric for Overview Cards
   const [overviewMetric, setOverviewMetric] = useState<'COUNT' | 'SUM'>('COUNT');
-
-  // Interactive Material Selection
   const [selectedMaterialGroups, setSelectedMaterialGroups] = useState<string[]>([]);
-
   const [workshopMetric, setWorkshopMetric] = useState<MetricType>('SUM_GT_DON_HANG');
   const [projectMetric, setProjectMetric] = useState<MetricType>('SUM_GT_DON_HANG');
   const [chartMetric, setChartMetric] = useState<MetricType>('SUM_GT_DON_HANG');
-
-  // NEW: Project Status Summary Metric (Value vs Count)
   const [projectSummaryMetric, setProjectSummaryMetric] = useState<'VALUE' | 'COUNT'>('VALUE');
-
   const [matStatusMetric, setMatStatusMetric] = useState<'COUNT_PR' | 'SUM_QTY'>('COUNT_PR');
-
   const [excludeFabrics, setExcludeFabrics] = useState(false);
-
   const [materialListPage, setMaterialListPage] = useState(1);
   const MATERIAL_ITEMS_PER_PAGE = 15;
 
-  // Options Helpers
+  // ... (useMemo options blocks) ...
+
   const getUniqueOptions = (data: DataRow[], key: string | undefined) => {
     if (!key) return [];
     const set = new Set(data.map(d => String(d[key] || '').trim()).filter(Boolean));
@@ -762,10 +710,9 @@ const Dashboard: React.FC<DashboardProps> = ({
   const invThangOptions = useMemo(() => getUniqueOptions(inventoryData, invThangKey), [inventoryData, invThangKey]);
   const invNgayOptions = useMemo(() => getUniqueOptions(inventoryData, invNgayKey), [inventoryData, invNgayKey]);
 
-  // UNIFIED OPTIONS (KHSX + INVENTORY)
   const unifiedNamOptions = useMemo(() => {
       const s = new Set([...khsxNamOptions, ...invNamOptions]);
-      return Array.from(s).sort().reverse(); // Years usually desc
+      return Array.from(s).sort().reverse();
   }, [khsxNamOptions, invNamOptions]);
 
   const unifiedThangOptions = useMemo(() => {
@@ -775,7 +722,6 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   const unifiedNgayOptions = useMemo(() => {
       const s = new Set([...khsxNgayOptions, ...invNgayOptions]);
-      // Sort numerically instead of alphabetically
       return Array.from(s).sort((a, b) => {
           const valA = parseInt(a);
           const valB = parseInt(b);
@@ -786,7 +732,6 @@ const Dashboard: React.FC<DashboardProps> = ({
       });
   }, [khsxNgayOptions, invNgayOptions]);
 
-  // UNIFIED DATE OPTIONS CALCULATION
   const unifiedDateOptions = useMemo(() => {
     const dates = new Set<string>();
     const addDates = (data: DataRow[], key: string | undefined) => {
@@ -809,20 +754,16 @@ const Dashboard: React.FC<DashboardProps> = ({
     });
   }, [orderData, tkbvData, pthspData, inventoryData, orderDateKey, tkbvDateKey, pthspDateKey, invDateKey]);
 
-  // Display Strings for Overview Header
   const overviewDateRangeDisplay = useMemo(() => getDateRangeDisplay(overviewDateFilters, unifiedDateOptions), [overviewDateFilters, unifiedDateOptions]);
 
-  // Helper for Displaying Context Text
   const getContextLabel = () => {
     if (overviewDateFilters.length === 0) return "Thống kê toàn bộ thời gian";
     if (overviewDateFilters.length === 1) return `Thống kê số liệu trong ngày: ${overviewDateFilters[0]}`;
     return `Thống kê số liệu: ${overviewDateRangeDisplay.replace(/[()]/g, '')}`;
   };
 
-  // Init Unified Date Filter
   useEffect(() => {
     if (!hasInitializedOverviewDate.current && unifiedDateOptions.length > 0) {
-        // Logic: Set default to Yesterday (Current Date - 1)
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
         
@@ -830,10 +771,9 @@ const Dashboard: React.FC<DashboardProps> = ({
         const mm = String(yesterday.getMonth() + 1).padStart(2, '0');
         const yyyy = yesterday.getFullYear();
         
-        const yesterdayStrSlash = `${dd}/${mm}/${yyyy}`; // DD/MM/YYYY
-        const yesterdayStrDash = `${dd}-${mm}-${yyyy}`;   // DD-MM-YYYY
+        const yesterdayStrSlash = `${dd}/${mm}/${yyyy}`;
+        const yesterdayStrDash = `${dd}-${mm}-${yyyy}`;
 
-        // Check if yesterday exists in options
         const targetDate = unifiedDateOptions.find(opt => 
             opt === yesterdayStrSlash || opt === yesterdayStrDash
         );
@@ -841,7 +781,6 @@ const Dashboard: React.FC<DashboardProps> = ({
         if (targetDate) {
             setOverviewDateFilters([targetDate]);
         } else {
-            // Fallback to latest available if yesterday has no data
             setOverviewDateFilters([unifiedDateOptions[0]]);
         }
 
@@ -849,7 +788,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     }
   }, [unifiedDateOptions]);
 
-  // --- Filter Logic ---
+  // ... (Filtered data logic) ...
 
   const filteredProductionData = useMemo(() => {
     return productionData.filter(row => {
@@ -877,8 +816,6 @@ const Dashboard: React.FC<DashboardProps> = ({
     });
   }, [filteredMaterialData, selectedMaterialGroups, matNhomVtKey]);
 
-  // --- OVERVIEW DATA FILTERED BY UNIFIED DATE ---
-  
   const filteredOrderData = useMemo(() => {
     if (overviewDateFilters.length === 0) return orderData;
     return orderData.filter(row => {
@@ -907,7 +844,6 @@ const Dashboard: React.FC<DashboardProps> = ({
     });
   }, [inventoryData, overviewDateFilters, invDateKey]);
 
-  // --- Bottleneck Data Processing ---
   const bottleneckData = useMemo<BottleneckItem[]>(() => {
     if (!tinhTrangKey || !daysAtCurrentStageKey) return [];
     
@@ -959,8 +895,6 @@ const Dashboard: React.FC<DashboardProps> = ({
   }, [filteredProductionData, tinhTrangKey, daysAtCurrentStageKey]);
 
 
-  // --- Helper Functions ---
-
   const formatNumber = (value: number, metric?: MetricType) => {
     if (metric === 'COUNT_HEX') return value.toLocaleString('en-US');
     if (value >= 1_000_000_000) return (value / 1_000_000_000).toLocaleString('en-US', { maximumFractionDigits: 1 }) + ' Tỷ';
@@ -974,7 +908,6 @@ const Dashboard: React.FC<DashboardProps> = ({
     if(ref.current) ref.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  // --- Export Functions ---
   const handleExportOverviewSummary = () => {
     const summaryData = [
       {
@@ -1003,7 +936,6 @@ const Dashboard: React.FC<DashboardProps> = ({
       }
     ];
     
-    // Add context to filename
     const dateStr = overviewDateFilters.length > 0 ? overviewDateFilters.join('_') : 'Toan_bo';
     exportToCSV(summaryData, `Tong_Hop_Bao_Cao_${dateStr}`);
   };
@@ -1013,8 +945,6 @@ const Dashboard: React.FC<DashboardProps> = ({
   };
 
   const handleExportBottlenecks = () => {
-    // Exporting the summary data shown in the chart is clearer for "Bottleneck Report"
-    // Flattening the bottleneckData for CSV
     const flatBottleneckData = bottleneckData.map(item => ({
       "Công đoạn": item.name,
       "< 3 Ngày": item['<3 NGÀY'] || 0,
@@ -1025,8 +955,6 @@ const Dashboard: React.FC<DashboardProps> = ({
     }));
     exportToCSV(flatBottleneckData, `Bao_Cao_Diem_Nghen_${new Date().toISOString().split('T')[0]}`);
   };
-
-  // --- Calculations ---
 
   const countUniqueHex = (data: DataRow[], key: string | undefined) => {
     if (!key) return 0;
@@ -1045,7 +973,6 @@ const Dashboard: React.FC<DashboardProps> = ({
   const tkbvCardValue = useMemo(() => {
       try {
           if (overviewMetric === 'COUNT') {
-              // UPDATED: Count Unique HEX for TKBV
               return countUniqueHex(filteredTkbvData, tkbvHexKey);
           }
           if (!tkbvValueKey) return 0;
@@ -1056,7 +983,6 @@ const Dashboard: React.FC<DashboardProps> = ({
   const pthspCardValue = useMemo(() => {
       try {
           if (overviewMetric === 'COUNT') {
-              // UPDATED: Count Unique HEX for PTHSP
               return countUniqueHex(filteredPthspData, pthspHexKey);
           }
           if (!pthspValueKey) return 0;
@@ -1067,7 +993,6 @@ const Dashboard: React.FC<DashboardProps> = ({
   const inventoryOverviewCardValue = useMemo(() => {
       try {
           if (overviewMetric === 'COUNT') {
-              // UPDATED: Count Unique HEX for Inventory
               return countUniqueHex(filteredInventoryOverviewData, invHexKey);
           }
           if (!invThanhTienKey) return 0;
@@ -1086,7 +1011,6 @@ const Dashboard: React.FC<DashboardProps> = ({
         return maxDate;
   }, [overviewDateFilters, unifiedDateOptions]);
 
-  // Generic Helper for Pivot Analysis (Replaces specific logic to avoid duplication)
   const calculatePivotAnalysis = (
     data: DataRow[], 
     dateKey: string | undefined, 
@@ -1099,7 +1023,6 @@ const Dashboard: React.FC<DashboardProps> = ({
     
     const tMonth = targetDate.getMonth();
     const tYear = targetDate.getFullYear();
-    // Updated structure to hold both Count (Set) and Value (number)
     const agg: Record<string, { dailyCount: Set<string>, mtdCount: Set<string>, dailyVal: number, mtdVal: number }> = {};
 
     data.forEach(row => {
@@ -1112,12 +1035,10 @@ const Dashboard: React.FC<DashboardProps> = ({
 
         if (!agg[group]) agg[group] = { dailyCount: new Set(), mtdCount: new Set(), dailyVal: 0, mtdVal: 0 };
 
-        // MTD Logic: Same Month/Year AND date <= targetDate
         if (rowDate.getMonth() === tMonth && rowDate.getFullYear() === tYear && rowDate <= targetDate) {
              agg[group].mtdCount.add(hex);
              agg[group].mtdVal += val;
              
-             // Daily Logic: Exactly match date
              if (rowDate.getDate() === targetDate.getDate()) {
                  agg[group].dailyCount.add(hex);
                  agg[group].dailyVal += val;
@@ -1137,7 +1058,6 @@ const Dashboard: React.FC<DashboardProps> = ({
     .sort((a,b) => b.mtd - a.mtd);
   };
 
-  // Pivot Logic for IPO Modal
   const ipoWorkshopAnalysis = useMemo(() => {
       return calculatePivotAnalysis(orderData, orderDateKey, orderXuongKey, orderHexKey, orderValueKey, latestUnifiedDate);
   }, [orderData, latestUnifiedDate, orderDateKey, orderXuongKey, orderHexKey, orderValueKey, overviewMetric]);
@@ -1146,7 +1066,6 @@ const Dashboard: React.FC<DashboardProps> = ({
       return calculatePivotAnalysis(orderData, orderDateKey, orderCongTrinhKey, orderHexKey, orderValueKey, latestUnifiedDate);
   }, [orderData, latestUnifiedDate, orderDateKey, orderCongTrinhKey, orderHexKey, orderValueKey, overviewMetric]);
 
-  // Pivot Logic for TKBV Modal
   const tkbvWorkshopAnalysis = useMemo(() => {
       return calculatePivotAnalysis(tkbvData, tkbvDateKey, tkbvXuongKey, tkbvHexKey, tkbvValueKey, latestUnifiedDate);
   }, [tkbvData, latestUnifiedDate, tkbvDateKey, tkbvXuongKey, tkbvHexKey, tkbvValueKey, overviewMetric]);
@@ -1155,7 +1074,6 @@ const Dashboard: React.FC<DashboardProps> = ({
       return calculatePivotAnalysis(tkbvData, tkbvDateKey, tkbvCongTrinhKey, tkbvHexKey, tkbvValueKey, latestUnifiedDate);
   }, [tkbvData, latestUnifiedDate, tkbvDateKey, tkbvCongTrinhKey, tkbvHexKey, tkbvValueKey, overviewMetric]);
 
-  // Pivot Logic for PTHSP Modal
   const pthspWorkshopAnalysis = useMemo(() => {
       return calculatePivotAnalysis(pthspData, pthspDateKey, pthspXuongKey, pthspHexKey, pthspValueKey, latestUnifiedDate);
   }, [pthspData, latestUnifiedDate, pthspDateKey, pthspXuongKey, pthspHexKey, pthspValueKey, overviewMetric]);
@@ -1164,7 +1082,6 @@ const Dashboard: React.FC<DashboardProps> = ({
       return calculatePivotAnalysis(pthspData, pthspDateKey, pthspCongTrinhKey, pthspHexKey, pthspValueKey, latestUnifiedDate);
   }, [pthspData, latestUnifiedDate, pthspDateKey, pthspCongTrinhKey, pthspHexKey, pthspValueKey, overviewMetric]);
 
-  // Pivot Logic for Inventory Modal
   const inventoryWorkshopAnalysis = useMemo(() => {
       return calculatePivotAnalysis(inventoryData, invDateKey, invXuongKey, invHexKey, invThanhTienKey, latestUnifiedDate);
   }, [inventoryData, latestUnifiedDate, invDateKey, invXuongKey, invHexKey, invThanhTienKey, overviewMetric]);
@@ -1194,13 +1111,11 @@ const Dashboard: React.FC<DashboardProps> = ({
         const tMonth = latestUnifiedDate.getMonth();
         const tYear = latestUnifiedDate.getFullYear();
         
-        // Filter rows for the month
         const monthRows = tkbvData.filter(row => {
              const d = parseVNDate(String(row[tkbvDateKey] || ''));
              return d && d.getMonth() === tMonth && d.getFullYear() === tYear;
         });
 
-        // Calculate
         const count = countUniqueHex(monthRows, tkbvHexKey);
         const value = tkbvValueKey ? monthRows.reduce((sum, row) => sum + parseNumber(row[tkbvValueKey]), 0) : 0;
 
@@ -1212,13 +1127,11 @@ const Dashboard: React.FC<DashboardProps> = ({
         const tMonth = latestUnifiedDate.getMonth();
         const tYear = latestUnifiedDate.getFullYear();
         
-        // Filter rows for the month
         const monthRows = pthspData.filter(row => {
             const d = parseVNDate(String(row[pthspDateKey] || ''));
             return d && d.getMonth() === tMonth && d.getFullYear() === tYear;
         });
 
-        // Calculate
         const count = countUniqueHex(monthRows, pthspHexKey);
         const value = pthspValueKey ? monthRows.reduce((sum, row) => sum + parseNumber(row[pthspValueKey]), 0) : 0;
         
@@ -1230,19 +1143,18 @@ const Dashboard: React.FC<DashboardProps> = ({
         const tMonth = latestUnifiedDate.getMonth();
         const tYear = latestUnifiedDate.getFullYear();
         
-        // Filter rows for the month
         const monthRows = inventoryData.filter(row => {
             const d = parseVNDate(String(row[invDateKey] || ''));
             return d && d.getMonth() === tMonth && d.getFullYear() === tYear;
         });
 
-        // Calculate
         const count = countUniqueHex(monthRows, invHexKey);
         const value = invThanhTienKey ? monthRows.reduce((sum, row) => sum + parseNumber(row[invThanhTienKey]), 0) : 0;
 
         return { count, value };
   }, [inventoryData, latestUnifiedDate, invDateKey, invThanhTienKey, invHexKey]);
 
+  // ... (KHSX & Inventory Chart Logic) ...
   const filteredKhsxData = useMemo(() => {
     return khsxData.filter(row => {
         const matchPhanLoai = khsxPhanLoaiFilter.length === 0 || (khsxPhanLoaiKey && khsxPhanLoaiFilter.includes(String(row[khsxPhanLoaiKey] || '').trim()));
@@ -1388,43 +1300,28 @@ const Dashboard: React.FC<DashboardProps> = ({
           if (!agg[ctName]) agg[ctName] = { totalOrder: 0, deployed: 0, ticketed: 0, inProduction: 0, inventory: 0 };
           const status = String(row[tinhTrangKey] || '').toUpperCase();
           
-          // Original Value Logic
           const totalOrderValRaw = parseNumber(row[triGiaDonHangTongKey]);
           const ticketValRaw = parseNumber(row[thanhTienTinhPhieuKey]);
           const inventoryValRaw = parseNumber(row[thanhTienNhapKhoKey]);
 
-          // Normalized for Value mode (1000s)
           const totalOrderVal = isCount ? 1 : (totalOrderValRaw / 1000);
           
-          // Logic mapping for COUNT mode vs VALUE mode
-          // For Count: 1 per row if condition met.
-          // For Value: Sum of amount if condition met.
-          
-          // 1. Total Order
           agg[ctName].totalOrder += totalOrderVal;
 
-          // 2. Deployed (If not 'CHUA TRIEN KHAI')
           if (!status.includes('15. CHƯA TRIỂN KHAI')) {
               agg[ctName].deployed += totalOrderVal;
           }
 
-          // 3. Ticketed (If not 'CHUA PHIEU' and not 'CHUA TRIEN KHAI')
-          // Count Mode: If ticketValRaw > 0, we count it as 1. If 0, maybe not ticketed yet or data missing? 
-          // Assuming checking status excludes non-ticketed, but verifying value > 0 helps accuracy for "Da Tinh Phieu".
           const valToAddTicket = isCount ? (ticketValRaw > 0 ? 1 : 0) : (ticketValRaw / 1000);
           
           if (!status.includes('15. CHƯA TRIỂN KHAI') && !status.includes('14. CHƯA PHIẾU')) {
               agg[ctName].ticketed += valToAddTicket;
           }
 
-          // 4. In Production (Active manufacturing)
           if (!status.includes('15. CHƯA TRIỂN KHAI') && !status.includes('14. CHƯA PHIẾU') && !status.includes('11. CHƯA SX')) {
-               // In value mode, we used ticketVal as proxy for "Value in Production".
-               // In count mode, we use same proxy: valToAddTicket (1 item).
                agg[ctName].inProduction += valToAddTicket;
           }
 
-          // 5. Inventory
           const valToAddInventory = isCount ? (inventoryValRaw > 0 ? 1 : 0) : (inventoryValRaw / 1000);
           agg[ctName].inventory += valToAddInventory;
       });
@@ -1472,7 +1369,6 @@ const Dashboard: React.FC<DashboardProps> = ({
     return { uniqueProjects, uniqueStatuses, matrix, rowTotals, colTotals, grandTotal };
   }, [filteredProductionData, excludeFabrics, congTrinhKey, tinhTrangKey, hangMucKey, projectMetric, valueKey, realValueKey]);
 
-  // Section A: Summary Pivot - Uses filteredMaterialData (All groups in project)
   const pivotMaterialSummary = useMemo<MaterialSummaryPivotData | null>(() => {
     if (!matNhomVtKey) return null;
     const summary: Record<string, { req: number, rec: number }> = {};
@@ -1488,10 +1384,8 @@ const Dashboard: React.FC<DashboardProps> = ({
     return { summary, sortedGroups, totalReq, totalRec };
   }, [filteredMaterialData, matNhomVtKey, matSlYeuCauKey, matSlDaNhanKey]);
 
-  // Section B: Status Pivot - Uses displayedMaterialData (Interactive Selection)
   const pivotMaterialStatusData = useMemo<MaterialStatusPivotData | null>(() => {
      if (!matNhomVtKey || !matStatusKey) return null;
-     // Use displayedMaterialData to respond to selection
      const uniqueStatuses = Array.from(new Set(displayedMaterialData.map(r => String(r[matStatusKey] || '').trim()).filter(Boolean))).sort();
      const uniqueGroups = Array.from(new Set(displayedMaterialData.map(r => String(r[matNhomVtKey] || 'Chưa phân nhóm').trim()))).sort();
      const matrix: Record<string, Record<string, number>> = {};
@@ -1510,36 +1404,23 @@ const Dashboard: React.FC<DashboardProps> = ({
      return { sortedGroups: uniqueGroups, uniqueStatuses, matrix, rowTotals, colTotals, grandTotal };
   }, [displayedMaterialData, matNhomVtKey, matStatusKey, matStatusMetric, matSlYeuCauKey]);
 
-  // Section C: Conditional Row Styling Logic
   const getMaterialRowClassName = (row: DataRow): string => {
      const status = String(row[matStatusSapKey] || '').toLowerCase();
-     
-     // Case 1: Cancel
      if (status.includes('hủy')) return 'bg-gray-100 text-gray-500 italic';
-     
-     // Case 2: Complete
      if (status.includes('hoàn thành') || status.includes('đóng') || status.includes('xong')) return 'bg-green-100 text-green-800';
-     
-     // Case 3: Open/Waiting
      if (status.includes('mở') || status.includes('open') || !status) {
          if (matEstDateKey) {
              const dateStr = String(row[matEstDateKey] || '');
              const date = parseVNDate(dateStr);
              if (date) {
                  const diff = diffDays(date, new Date());
-                 // Overdue
                  if (diff < 0) return 'bg-red-100 text-yellow-700 font-bold'; 
-                 // Today
                  if (diff === 0) return 'bg-orange-200 text-orange-800 animate-pulse font-bold';
-                 // Near (1-5 days)
                  if (diff >= 1 && diff <= 5) return 'bg-yellow-50 text-slate-700';
-                 // Far (> 5 days)
                  if (diff > 5) return 'bg-yellow-200 text-slate-700';
              }
          }
      }
-     
-     // Default
      return 'bg-white hover:bg-slate-50';
   };
 
@@ -1574,71 +1455,125 @@ const Dashboard: React.FC<DashboardProps> = ({
       materialListPage * MATERIAL_ITEMS_PER_PAGE
   );
 
-  // ... ProjectChartTooltip (keep existing) ...
   const ProjectChartTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-white p-3 border border-slate-200 rounded-lg shadow-lg">
-          <p className="text-xs font-bold text-slate-700 mb-2">{payload[0].payload.name}</p>
-          <div className="flex flex-col gap-1">
-              <div className="flex items-center justify-between gap-4">
-                  <span className="text-xs text-orange-600 font-medium">Kế hoạch:</span>
-                  <span className="text-sm font-bold text-orange-700">{formatDecimal(payload[0].payload.khValue)}</span>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                  <span className="text-xs text-indigo-600 font-medium">Thực hiện:</span>
-                  <span className="text-sm font-bold text-indigo-700">{formatDecimal(payload[0].payload.thValue)}</span>
-              </div>
-          </div>
-        </div>
-      );
-    }
-    return null;
+  const formatValue = (value: any) => {
+    if (value === null || value === undefined) return '0';
+    return Number(value).toFixed(1); 
   };
 
-  // --- FACTORY REVENUE CALCULATION ---
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white p-3 border border-slate-200 rounded-lg shadow-lg">
+        <p className="text-xs font-bold text-slate-700 mb-2">{payload[0].payload.name}</p>
+        <div className="flex flex-col gap-1">
+            <div className="flex items-center justify-between gap-4">
+                <span className="text-xs text-orange-600 font-medium">Kế hoạch:</span>
+                <span className="text-sm font-bold text-orange-700">
+                  {formatValue(payload[0].payload.khValue)}
+                </span>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+                <span className="text-xs text-indigo-600 font-medium">Thực hiện:</span>
+                <span className="text-sm font-bold text-indigo-700">
+                  {formatValue(payload[0].payload.thValue)}
+                </span>
+            </div>
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
 
-  // Calculate Target Revenue 2026 Dynamically
+const WorkshopChartTooltip = ({ active, payload, label }: any) => {
+    const formatValue = (value: any) => {
+        if (value === null || value === undefined) return '0';
+        return Number(value).toFixed(1);
+    };
+
+    if (active && payload && payload.length) {
+        return (
+            <div className="bg-white p-3 border border-slate-200 rounded-lg shadow-lg">
+                <p className="text-xs font-bold text-slate-700 mb-2">{payload[0].payload.name}</p>
+                <div className="flex flex-col gap-1">
+                    <div className="flex items-center justify-between gap-4">
+                        <span className="text-xs text-orange-600 font-medium">Kế hoạch:</span>
+                        <span className="text-sm font-bold text-orange-700">
+                            {formatValue(payload[0].payload.khValue)}
+                        </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                        <span className="text-xs text-indigo-600 font-medium">Thực hiện:</span>
+                        <span className="text-sm font-bold text-indigo-700">
+                            {formatValue(payload[0].payload.thValue)}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+    return null;
+};
+
+const YearlyPlanWorkshopTooltip = ({ active, payload, label }: any) => {
+  const formatValue = (value: any) => {
+      if (value === null || value === undefined) return '0';
+      return Number(value).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  };
+
+  if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      const plan = data.plan || 0;
+      const actual = data.actual || 0;
+      const percent = plan > 0 ? (actual / plan) * 100 : 0;
+
+      return (
+          <div className="bg-white p-3 border border-slate-200 rounded-lg shadow-lg">
+              <p className="text-xs font-bold text-slate-700 mb-2">{data.name}</p>
+              <div className="flex flex-col gap-1">
+                  <div className="flex items-center justify-between gap-4">
+                      <span className="text-xs text-emerald-600 font-medium">Kế hoạch:</span>
+                      <span className="text-sm font-bold text-emerald-700">
+                          {formatValue(plan)} Tỷ
+                      </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                      <span className="text-xs text-blue-600 font-medium">Thực hiện:</span>
+                      <span className="text-sm font-bold text-blue-700">
+                          {formatValue(actual)} Tỷ
+                      </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 border-t border-slate-100 pt-1 mt-1">
+                      <span className="text-xs text-slate-500 font-medium">% Đạt:</span>
+                      <span className={`text-sm font-bold ${percent >= 80 ? 'text-emerald-600' : percent >= 50 ? 'text-amber-600' : 'text-red-500'}`}>
+                          {percent.toLocaleString('en-US', { maximumFractionDigits: 1 })}%
+                      </span>
+                  </div>
+              </div>
+          </div>
+      );
+  }
+  return null;
+};
+
   const targetRevenue2026 = useMemo(() => {
     if (!yearlyPlanAmountKey || !yearlyPlanYearKey || yearlyPlanData.length === 0) return 0;
-    
-    // Filter for Year 2026
     const rows2026 = yearlyPlanData.filter(row => String(row[yearlyPlanYearKey]).trim() === '2026');
-    
-    // Sum Amount
     const totalRaw = rows2026.reduce((sum, row) => sum + parseNumber(row[yearlyPlanAmountKey]), 0);
-    
-    // Convert to Billions (Based on assumption that raw data is in Millions, same as Inventory)
-    // If raw data is VNĐ, divide by 1,000,000,000. If raw data is Millions, divide by 1,000.
-    // Based on `factoryRevenueStats` logic below which divides by 1000 for Inventory data to get Billions:
     return totalRaw / 1000; 
   }, [yearlyPlanData, yearlyPlanAmountKey, yearlyPlanYearKey]);
 
   const factoryRevenueStats = useMemo(() => {
-    // Determine keys for Inventory Amount and Year
-    // Using TARGET_COLUMN_NAMES from types.ts ensuring correct mapping
-    // INVENTORY_AMOUNT: 'THÀNH TIỀN NHẬP KHO'
-    // NAM: 'NĂM'
     const invThanhTienKey = findColumnKey(inventoryColumns, TARGET_COLUMN_NAMES.INVENTORY_AMOUNT);
     const invNamKey = findColumnKey(inventoryColumns, TARGET_COLUMN_NAMES.NAM);
-
     if (!invNamKey || !invThanhTienKey) return { actual: 0, percent: 0, totalVND: 0 };
-
-    // Filter specifically for Year 2026 from Inventory Data
     const rows2026 = inventoryData.filter(row => {
       const year = String(row[invNamKey] || '').trim();
       return year === '2026';
     });
-
-    // Sum Value using 'THÀNH TIỀN NHẬP KHO'
     const totalVND = rows2026.reduce((sum, row) => sum + parseNumber(row[invThanhTienKey]), 0);
-
-    // Convert to Billions (1 Tỷ = 1,000,000,000)
-    // Assuming input data is in Millions
     const actualBillion = totalVND / 1000 ;
-
     const percent = targetRevenue2026 > 0 ? (actualBillion / targetRevenue2026) * 100 : 0;
-
     return { actual: actualBillion, percent, totalVND };
   }, [inventoryData, inventoryColumns, targetRevenue2026]);
 
@@ -1653,23 +1588,16 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   const yearlyPlan2026WorkshopChartData = useMemo(() => {
     const yearlyPlanXuongKey = findColumnKey(yearlyPlanColumns, TARGET_COLUMN_NAMES.XUONG);
-
     if (!yearlyPlanAmountKey || !yearlyPlanYearKey || !yearlyPlanXuongKey || !invThanhTienKey || !invNamKey || !invXuongKey) return [];
-
-    // 1. Plan Aggregation
     const planAgg: Record<string, number> = {};
     yearlyPlanData.forEach(row => {
         const year = String(row[yearlyPlanYearKey] || '').trim();
         if (year === '2026') {
             const xuong = String(row[yearlyPlanXuongKey] || 'Chưa phân xưởng').trim();
-            // Assuming raw data is in Millions (based on existing logic for targetRevenue2026)
-            // Divide by 1000 to get Billions
             const val = parseNumber(row[yearlyPlanAmountKey]) / 1000;
             planAgg[xuong] = (planAgg[xuong] || 0) + val;
         }
     });
-
-    // 2. Actual (Inventory) Aggregation
     const actualAgg: Record<string, number> = {};
     inventoryData.forEach(row => {
          const year = String(row[invNamKey] || '').trim();
@@ -1679,10 +1607,7 @@ const Dashboard: React.FC<DashboardProps> = ({
              actualAgg[xuong] = (actualAgg[xuong] || 0) + val;
          }
     });
-
-    // 3. Merge & Sort
     const allWorkshops = Array.from(new Set([...Object.keys(planAgg), ...Object.keys(actualAgg)]));
-    
     return allWorkshops
         .map(name => ({
             name,
@@ -1702,7 +1627,6 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   return (
     <div className="space-y-6 overflow-y-auto h-full custom-scrollbar pb-24 bg-wood-50">
-      {/* ... rest of the JSX ... */}
       
       {/* Sticky Header & Filters */}
       <div className="sticky top-0 z-40 bg-wood-50/95 backdrop-blur-sm border-b border-wood-200 px-4 py-3 shadow-sm">
@@ -1796,106 +1720,133 @@ const Dashboard: React.FC<DashboardProps> = ({
                     </div>
                 </div>
                 <div className="flex items-center gap-2 bg-emerald-50/50 px-3 py-1.5 rounded-lg border border-emerald-100">
-                     <span className="text-xs text-slate-500 font-medium">Chỉ tiêu Năm:</span>
-                     <span className="text-sm font-bold text-slate-700">{formatNumber(targetRevenue2026)} Tỷ</span>
+                        <span className="text-xs text-slate-500 font-medium">Chỉ tiêu Năm:</span>
+                        <span className="text-sm font-bold text-slate-700">{formatNumber(targetRevenue2026)} Tỷ</span>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-center">
-                {/* Left: Summary Stats */}
-                <div className="lg:col-span-1 flex flex-col gap-4">
-                    <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-100">
-                        <p className="text-xs font-bold text-emerald-800 uppercase mb-1">Thực hiện Lũy kế (Nhập kho)</p>
-                        <div className="flex items-baseline gap-2">
-                             <h4 className="text-3xl font-extrabold text-emerald-600">{formatDecimal(factoryRevenueStats.actual)}</h4>
-                             <span className="text-sm font-medium text-emerald-500">Tỷ</span>
-                        </div>
-                    </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                {/* Left Column: Progress Bar & Cards */}
+                <div className="lg:col-span-1 flex flex-col gap-6">
                     
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                             <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Kế hoạch Năm</p>
-                             <div className="flex items-baseline gap-1">
-                                  <h4 className="text-xl font-bold text-slate-700">{formatDecimal(targetRevenue2026)}</h4>
-                                  <span className="text-xs text-slate-400">Tỷ</span>
-                             </div>
+                    {/* 1. Progress Bar (Moved Here) */}
+                    <div className="w-full">
+                         <div className="flex justify-between items-end mb-2">
+                            <p className="text-xs font-bold text-slate-500 uppercase">Tiến độ tổng thể</p>
+                            <span className="text-[10px] text-slate-400">Mục tiêu: {formatDecimal(targetRevenue2026)} Tỷ</span>
+                         </div>
+                         <div className="h-[60px] w-full bg-slate-50 rounded-lg border border-slate-100 p-2">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart
+                                    layout="vertical"
+                                    data={factoryRevenueChartData}
+                                    margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
+                                    barSize={24}
+                                >
+                                    <XAxis type="number" hide domain={[0, 'dataMax']} />
+                                    <YAxis type="category" dataKey="name" hide />
+                                    <RechartsTooltip 
+                                        cursor={{fill: 'transparent'}}
+                                        formatter={(value: number, name: string) => {
+                                            if (name === 'thucHien') return [formatDecimal(value) + ' Tỷ', 'Thực hiện (Lũy kế)'];
+                                            if (name === 'conLai') return [formatDecimal(value) + ' Tỷ', 'Còn lại'];
+                                            return [value, name];
+                                        }}
+                                        contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}
+                                    />
+                                    <Bar dataKey="thucHien" stackId="a" fill="#10b981" radius={[4, 0, 0, 4]}>
+                                        <LabelList dataKey="thucHien" position="center" fill="white" fontSize={10} fontWeight="bold" formatter={(val: number) => val > 0 ? formatDecimal(val) : ''} />
+                                    </Bar>
+                                    <Bar dataKey="conLai" stackId="a" fill="#e2e8f0" radius={[0, 4, 4, 0]} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                         </div>
+                    </div>
+
+                    {/* 2. Metric Cards */}
+                    <div className="flex flex-col gap-4">
+                        <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-100">
+                            <p className="text-xs font-bold text-emerald-800 uppercase mb-1">Thực hiện Lũy kế (Nhập kho)</p>
+                            <div className="flex items-baseline gap-2">
+                                    <h4 className="text-3xl font-extrabold text-emerald-600">{formatDecimal(factoryRevenueStats.actual)}</h4>
+                                    <span className="text-sm font-medium text-emerald-500">Tỷ</span>
+                            </div>
                         </div>
-                        <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                             <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Tỷ lệ Đạt</p>
-                             <div className="flex items-baseline gap-1">
-                                  <h4 className={`text-xl font-bold ${factoryRevenueStats.percent >= 100 ? 'text-emerald-600' : factoryRevenueStats.percent >= 80 ? 'text-teal-600' : factoryRevenueStats.percent >= 50 ? 'text-amber-600' : 'text-red-500'}`}>{formatDecimal(factoryRevenueStats.percent)}%</h4>
-                             </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Kế hoạch Năm</p>
+                                    <div className="flex items-baseline gap-1">
+                                        <h4 className="text-xl font-bold text-slate-700">{formatDecimal(targetRevenue2026)}</h4>
+                                        <span className="text-xs text-slate-400">Tỷ</span>
+                                    </div>
+                            </div>
+                            <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Tỷ lệ Đạt</p>
+                                    <div className="flex items-baseline gap-1">
+                                        <h4 className={`text-xl font-bold ${factoryRevenueStats.percent >= 100 ? 'text-emerald-600' : factoryRevenueStats.percent >= 80 ? 'text-teal-600' : factoryRevenueStats.percent >= 50 ? 'text-amber-600' : 'text-red-500'}`}>{formatDecimal(factoryRevenueStats.percent)}%</h4>
+                                    </div>
+                            </div>
                         </div>
                     </div>
+
                 </div>
 
-                {/* Right: Progress Chart (Stacked Horizontal Bar) */}
-                <div className="lg:col-span-2 h-[140px] w-full">
-                     <ResponsiveContainer width="100%" height="100%">
-                        <BarChart
-                            layout="vertical"
-                            data={factoryRevenueChartData}
-                            margin={{ top: 0, right: 200, left: 0, bottom: 0 }}
-                            barSize={40}
-                        >
-                            <XAxis type="number" hide domain={[0, 'dataMax']} />
-                            <YAxis type="category" dataKey="name" hide />
-                            <RechartsTooltip 
-                                cursor={{fill: 'transparent'}}
-                                formatter={(value: number, name: string) => {
-                                    if (name === 'thucHien') return [formatDecimal(value) + ' Tỷ', 'Thực hiện (Lũy kế)'];
-                                    if (name === 'conLai') return [formatDecimal(value) + ' Tỷ', 'Còn lại'];
-                                    return [value, name];
-                                }}
-                                contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}
-                            />
-                            {/* Stacked Bars: Actual (Green) + Remaining (Gray) */}
-                            <Bar dataKey="thucHien" stackId="a" fill="#10b981" radius={[4, 0, 0, 4]}>
-                                <LabelList dataKey="thucHien" position="center" fill="white" fontSize={12} fontWeight="bold" formatter={(val: number) => formatDecimal(val) + ' Tỷ'} />
-                            </Bar>
-                            <Bar dataKey="conLai" stackId="a" fill="#e2e8f0" radius={[0, 4, 4, 0]}>
-                                <LabelList dataKey="fullTarget" position="right" fill="#64748b" fontSize={12} fontWeight="bold" formatter={(val: number) => 'Mục tiêu: ' + formatDecimal(val) + ' Tỷ'} />
-                            </Bar>
-                        </BarChart>
-                     </ResponsiveContainer>
+                {/* Right Column: Workshop Comparison Chart */}
+                <div className="lg:col-span-2 flex flex-col bg-white rounded-xl border border-slate-100 p-4 shadow-sm h-full min-h-[400px]">
+                    {yearlyPlan2026WorkshopChartData.length > 0 ? (
+                        <>
+                            <h4 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2 uppercase tracking-wide">
+                                <BarChart2 className="w-4 h-4 text-emerald-600"/> Phân bổ Kế hoạch theo Xưởng (2026)
+                            </h4>
+                            <div className="flex-1 w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={yearlyPlan2026WorkshopChartData} margin={{ top: 20, right: 30, left: 0, bottom: 40 }}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                        <XAxis dataKey="name" angle={-25} textAnchor="end" height={60} tick={{ fontSize: 10, fill: '#64748b' }} interval={0} />
+                                        <YAxis tickFormatter={(val) => formatDecimal(val)} tick={{ fontSize: 10, fill: '#64748b' }} />
+                                        <RechartsTooltip content={<YearlyPlanWorkshopTooltip />} cursor={{fill: '#f8fafc'}}/>
+                                        <Legend verticalAlign="top" height={36} />
+                                        <Bar dataKey="plan" name="Kế hoạch (Tỷ)" fill="#10b981" radius={[4, 4, 0, 0]} barSize={30}>
+                                            <LabelList dataKey="plan" position="top" formatter={(val: number) => val > 0 ? formatDecimal(val) : ''} fontSize={10} fill="#059669" />
+                                        </Bar>
+                                        <Bar dataKey="actual" name="Thực hiện (Tỷ)" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={30}>
+                                            <LabelList 
+                                                dataKey="actual" 
+                                                position="top" 
+                                                content={(props: any) => {
+                                                    const { x, y, width, value, index } = props;
+                                                    const item = yearlyPlan2026WorkshopChartData[index];
+                                                    const plan = item?.plan || 0;
+                                                    const actual = Number(value) || 0;
+                                                    
+                                                    if (actual <= 0) return null;
+                                                    
+                                                    const percent = plan > 0 ? (actual / plan) * 100 : 0;
+                                                    
+                                                    return (
+                                                        <text x={x + width / 2} y={y - 15} fill="#2563eb" fontSize={10} textAnchor="middle">
+                                                            <tspan x={x + width / 2} dy="0">{formatDecimal(actual)}</tspan>
+                                                            <tspan x={x + width / 2} dy="12">({Math.round(percent)}%)</tspan>
+                                                        </text>
+                                                    );
+                                                }} 
+                                            />
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="h-full flex items-center justify-center text-slate-400">Không có dữ liệu xưởng</div>
+                    )}
                 </div>
             </div>
-
-            {/* NEW CHART: Phân bổ Kế hoạch theo Xưởng */}
-            {yearlyPlan2026WorkshopChartData.length > 0 && (
-                <div className="mt-6 border-t border-emerald-50 pt-6">
-                    <h4 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2 uppercase tracking-wide">
-                        <BarChart2 className="w-4 h-4 text-emerald-600"/> Phân bổ Kế hoạch theo Xưởng (2026)
-                    </h4>
-                    <div className="h-[300px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={yearlyPlan2026WorkshopChartData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                                <XAxis dataKey="name" angle={-25} textAnchor="end" height={60} tick={{ fontSize: 10, fill: '#64748b' }} interval={0} />
-                                <YAxis tickFormatter={(val) => formatDecimal(val)} tick={{ fontSize: 10, fill: '#64748b' }} />
-                                <RechartsTooltip 
-                                    formatter={(value: number, name: string) => {
-                                        if (name === 'plan') return [formatDecimal(value) + ' Tỷ', 'Kế hoạch'];
-                                        if (name === 'actual') return [formatDecimal(value) + ' Tỷ', 'Thực hiện'];
-                                        return [value, name];
-                                    }}
-                                    contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0' }}
-                                />
-                                <Legend verticalAlign="top" height={36} />
-                                <Bar dataKey="plan" name="Kế hoạch (Tỷ)" fill="#10b981" radius={[4, 4, 0, 0]} barSize={20}>
-                                    <LabelList dataKey="plan" position="top" formatter={(val: number) => val > 0 ? formatDecimal(val) : ''} fontSize={10} fill="#059669" />
-                                </Bar>
-                                <Bar dataKey="actual" name="Thực hiện (Tỷ)" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={20}>
-                                    <LabelList dataKey="actual" position="top" formatter={(val: number) => val > 0 ? formatDecimal(val) : ''} fontSize={10} fill="#2563eb" />
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-            )}
         </div>
 
         {/* --- MOVED SECTION: ORDER OVERVIEW (RENAMED TO BÁO CÁO TỔNG QUAN) --- */}
+        {/* ... (Order Overview content unchanged) ... */}
         {(orderData.length > 0 || tkbvData.length > 0 || pthspData.length > 0) && (
             <div ref={orderOverviewRef} className="scroll-mt-24 w-full bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col">
                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
@@ -1906,7 +1857,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                            <span className="text-[10px] text-slate-400">Dữ liệu từ nguồn Đơn hàng tổng & TKBV & PTHSP & Nhập Kho</span>
                        </div>
                     </div>
-                    {/* Unified Date Filter Header with Global Metric Toggle */}
                     <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-lg border border-slate-100">
                         <div className="flex flex-col items-end">
                             <span className="text-[10px] font-bold text-slate-500 uppercase">CHẾ ĐỘ HIỂN THỊ:</span>
@@ -1933,7 +1883,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                  </div>
                  
                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-                    {/* CARD 1: ORDER DATA */}
                     <div className="flex flex-col gap-4">
                          <div className="p-5 bg-gradient-to-br from-pink-50 to-rose-50 rounded-xl border border-pink-100 shadow-sm flex flex-col justify-center relative overflow-hidden group hover:shadow-md transition-shadow h-full min-h-[160px]">
                              <button onClick={() => setIsIpoDetailModalOpen(true)} className="absolute top-4 right-4 text-pink-400 hover:text-pink-700 transition-colors z-20" title="Xem chi tiết">
@@ -1971,7 +1920,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                          </div>
                     </div>
 
-                    {/* CARD 2: TKBV DATA */}
                     <div className="flex flex-col gap-4">
                          <div className="p-5 bg-gradient-to-br from-blue-50 to-sky-50 rounded-xl border border-blue-100 shadow-sm flex flex-col justify-center relative overflow-hidden group hover:shadow-md transition-shadow h-full min-h-[160px]">
                              <button onClick={() => setIsTkbvDetailModalOpen(true)} className="absolute top-4 right-4 text-blue-400 hover:text-blue-700 transition-colors z-20" title="Xem chi tiết">
@@ -2009,7 +1957,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                          </div>
                     </div>
 
-                    {/* CARD 3: PTHSP DATA */}
                     <div className="flex flex-col gap-4">
                          <div className="p-5 bg-gradient-to-br from-purple-50 to-fuchsia-50 rounded-xl border border-purple-100 shadow-sm flex flex-col justify-center relative overflow-hidden group hover:shadow-md transition-shadow h-full min-h-[160px]">
                              <button onClick={() => setIsPthspDetailModalOpen(true)} className="absolute top-4 right-4 text-purple-400 hover:text-purple-700 transition-colors z-20" title="Xem chi tiết">
@@ -2047,7 +1994,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                          </div>
                     </div>
 
-                    {/* CARD 4: INVENTORY DATA (NEW) */}
                     <div className="flex flex-col gap-4">
                          <div className="p-5 bg-gradient-to-br from-teal-50 to-emerald-50 rounded-xl border border-teal-100 shadow-sm flex flex-col justify-center relative overflow-hidden group hover:shadow-md transition-shadow h-full min-h-[160px]">
                              <button onClick={() => setIsInventoryDetailModalOpen(true)} className="absolute top-4 right-4 text-teal-400 hover:text-teal-700 transition-colors z-20" title="Xem chi tiết">
@@ -2090,7 +2036,6 @@ const Dashboard: React.FC<DashboardProps> = ({
         )}
 
         <div ref={productionStatusRef} id="production-status-section" className="scroll-mt-24 w-full bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col gap-8">
-            {/* Parent Header */}
             <div className="flex flex-row justify-between items-start border-b border-slate-100 pb-4">
                 <div className="flex flex-col gap-1">
                   <h3 className="text-lg font-semibold text-slate-700 flex items-center gap-2">
@@ -2101,7 +2046,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <button onClick={handleExportProductionStatus} className="p-1.5 text-slate-500 hover:text-wood-600 hover:bg-wood-50 rounded-lg transition-colors border border-slate-200" title="Xuất dữ liệu sản xuất"><Download size={16} /></button>
             </div>
 
-            {/* Section 1: Capability Analysis */}
             <div>
                <h4 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2 uppercase tracking-wide">
                    <Layers className="w-4 h-4 text-wood-500"/> 1. Phân tích Khả năng & Thành tiền
@@ -2125,7 +2069,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                </div>
             </div>
 
-            {/* Section 2: Workshop Pivot */}
             <div ref={pivotWorkshopRef}>
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
                    <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2 uppercase tracking-wide">
@@ -2147,7 +2090,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         {pivotWorkshopData.uniqueStatuses.map((s: string) => (
                           <tr key={s} className="hover:bg-slate-50 transition-colors">
                             <td className="px-3 py-2 text-left font-medium text-slate-700 sticky left-0 bg-white hover:bg-slate-50 z-10 whitespace-nowrap border-r border-slate-100">{s}</td>
-                            {pivotWorkshopData.uniqueWorkshops.map((w: string) => { 
+                            {(pivotWorkshopData.uniqueWorkshops as string[]).map((w: string) => { 
                                 const val = pivotWorkshopData!.matrix[s as string]?.[w as string] || 0; 
                                 return (<td key={w} className={`px-3 py-2 whitespace-nowrap ${val === 0 ? 'text-slate-300' : 'text-slate-600'}`}>{val === 0 ? '-' : formatNumber(val, workshopMetric)}</td>); 
                             })}
@@ -2168,7 +2111,6 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
         </div>
 
-        {/* --- NEW SECTION: BÁO CÁO TỶ TRỌNG ĐIỂM NGHẼN --- */}
         {bottleneckData.length > 0 && (
           <div ref={bottleneckSectionRef} className="scroll-mt-24 w-full bg-white p-6 rounded-xl shadow-sm border border-red-100 flex flex-col gap-6">
             <div className="flex flex-row justify-between items-start border-b border-red-50 pb-4">
@@ -2185,7 +2127,6 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Chart Section */}
               <div className="lg:col-span-2 h-[400px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
@@ -2218,7 +2159,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                       wrapperStyle={{ fontSize: '11px', fontWeight: 500 }}
                     />
                     
-                    {/* Define Bars with Specific Colors for Stack Order */}
                     <Bar dataKey="Từ 4 tuần trở lên" stackId="a" fill="#ef4444" barSize={30}>
                         <LabelList dataKey="Từ 4 tuần trở lên" position="center" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(v: number) => v > 0 ? v : ''} />
                     </Bar>
@@ -2238,7 +2178,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </ResponsiveContainer>
               </div>
 
-              {/* KPI List Section */}
               <div className="bg-red-50/50 rounded-xl p-5 border border-red-100 flex flex-col">
                 <div className="flex items-center gap-2 mb-4 text-red-700">
                   <Clock className="w-5 h-5" />
@@ -2281,7 +2220,6 @@ const Dashboard: React.FC<DashboardProps> = ({
           </div>
         )}
 
-        {/* --- Unified Section: Plan & Inventory --- */}
         {(khsxData.length > 0 || inventoryData.length > 0) && (
             <div ref={khsxSectionRef} className="scroll-mt-24 bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col gap-6">
                 <div className="flex flex-col gap-4 border-b border-slate-100 pb-4">
@@ -2295,7 +2233,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                         </div>
                    </div>
                    
-                   {/* UNIFIED FILTER BAR */}
                    <div className="flex flex-wrap items-center gap-3 bg-slate-50 p-2 rounded-lg border border-slate-100">
                         <div className="flex items-center gap-2 mr-2">
                             <Filter size={14} className="text-slate-500"/>
@@ -2385,7 +2322,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             <CartesianGrid strokeDasharray="3 3" vertical={false} />
                             <XAxis dataKey="name" angle={-25} textAnchor="end" height={60} tick={{fontSize: 10}} interval={0}/>
                             <YAxis tickFormatter={formatDecimal} tick={{fontSize: 10}} width={45} domain={['auto', 'auto']} />
-                            <RechartsTooltip cursor={{fill: '#f8fafc'}}/>
+                            <RechartsTooltip content={<WorkshopChartTooltip />} cursor={{fill: '#f8fafc'}}/>
                             <Legend verticalAlign="top" height={36} iconType="circle" />
                             <Bar dataKey="khValue" name="Kế hoạch (KH)" fill="#f97316" radius={[4, 4, 0, 0]} barSize={20}><LabelList position="top" formatter={formatDecimal} fontSize={10} fill="#c2410c" /></Bar>
                             <Bar dataKey="thValue" name="Thực hiện (TH)" fill="#4f46e5" radius={[4, 4, 0, 0]} barSize={20}><LabelList position="top" formatter={formatDecimal} fontSize={10} fill="#4338ca" /></Bar>
@@ -2520,7 +2457,6 @@ const Dashboard: React.FC<DashboardProps> = ({
             ) : <div className="p-8 text-center text-slate-500 bg-slate-50 rounded-lg">Không đủ dữ liệu để tạo bảng Pivot Công trình.</div>}
         </div>
 
-        {/* --- Section 3.5: Pivot Table Material (Material Group Summary) --- */}
         <div ref={pivotMaterialRef} className="scroll-mt-24 w-full bg-white p-5 rounded-xl shadow-sm border border-emerald-100 flex flex-col">
             <div className="flex justify-between items-center mb-4">
                <h3 className="text-base font-semibold text-slate-700 flex items-center gap-2"><Package className="w-4 h-4 text-emerald-600"/>Tổng hợp Vật tư theo Nhóm (Dữ liệu Vật tư)</h3>
@@ -2563,7 +2499,6 @@ const Dashboard: React.FC<DashboardProps> = ({
             ) : <div className="p-8 text-center text-slate-500 bg-slate-50 rounded-lg">Không có dữ liệu vật tư phù hợp.</div>}
         </div>
 
-        {/* --- Section 3.6: Pivot Table Material Status (Group x Status) --- */}
         <div ref={pivotMaterialStatusRef} className="scroll-mt-24 w-full bg-white p-5 rounded-xl shadow-sm border border-emerald-100 flex flex-col">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
                <h3 className="text-base font-semibold text-slate-700 flex items-center gap-2"><ListFilter className="w-4 h-4 text-emerald-600"/>Tình trạng Vật tư (Nhóm x Trạng thái)</h3>
@@ -2587,7 +2522,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             {pivotMaterialStatusData.sortedGroups.map((group: string) => (
                                 <tr key={group} className="hover:bg-slate-50 transition-colors group">
                                     <td className="px-3 py-2 text-left font-medium text-slate-700 sticky left-0 bg-white group-hover:bg-slate-50 z-10 whitespace-nowrap border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{group}</td>
-                                    {pivotMaterialStatusData.uniqueStatuses.map((s: string) => { 
+                                    {(pivotMaterialStatusData.uniqueStatuses as string[]).map((s: string) => { 
                                         const val = pivotMaterialStatusData!.matrix[group as string]?.[s as string] || 0; 
                                         return (<td key={s} className={`px-3 py-2 whitespace-nowrap ${val === 0 ? 'text-slate-300' : 'text-slate-600'}`}>{val === 0 ? '-' : (matStatusMetric === 'SUM_QTY' ? formatDecimal(val) : formatNumber(val))}</td>); 
                                     })}
@@ -2607,7 +2542,6 @@ const Dashboard: React.FC<DashboardProps> = ({
             ) : <div className="p-8 text-center text-slate-500 bg-slate-50 rounded-lg">Không có dữ liệu để tạo bảng trạng thái vật tư.</div>}
         </div>
 
-        {/* --- Section 5: Filtered Material List --- */}
         <div ref={materialListRef} className="w-full bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col">
              <div className="flex justify-between items-center mb-4">
                  <h3 className="text-base font-semibold text-slate-700 flex items-center gap-2"><Box className="w-4 h-4 text-slate-600"/>Chi tiết Dữ liệu Vật tư (Lọc theo Công trình)</h3>
@@ -2665,8 +2599,6 @@ const Dashboard: React.FC<DashboardProps> = ({
 
       </div>
 
-      {/* ... (Modals remain unchanged) ... */}
-      {/* --- IPO DETAIL MODAL --- */}
       {isIpoDetailModalOpen && (
          <div className={`fixed inset-y-0 right-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-all duration-300
          left-0 ${isSidebarCollapsed ? 'md:left-20' : 'md:left-64'}`}>
@@ -2685,7 +2617,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                </div>
                
                <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 custom-scrollbar">
-                  {/* Part 1: By Workshop - Uses DetailModalTable */}
                   <DetailModalTable 
                       data={ipoWorkshopAnalysis}
                       title="Chi tiết theo Xưởng"
@@ -2698,7 +2629,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                       defaultExcludedKeys={['ABC', 'OTHERS', 'X.ĐB']}
                   />
 
-                  {/* Part 2: By Project - Uses DetailModalTable */}
                   <div className="border-t border-slate-200 pt-6">
                       <DetailModalTable 
                           data={ipoProjectAnalysis}
@@ -2716,7 +2646,6 @@ const Dashboard: React.FC<DashboardProps> = ({
          </div>
       )}
 
-      {/* --- TKBV DETAIL MODAL --- */}
       {isTkbvDetailModalOpen && (
          <div className={`fixed inset-y-0 right-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-all duration-300
          left-0 ${isSidebarCollapsed ? 'md:left-20' : 'md:left-64'}`}>
@@ -2735,7 +2664,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                </div>
                
                <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 custom-scrollbar">
-                  {/* Part 1: By Workshop - Uses DetailModalTable */}
                   <DetailModalTable 
                       data={tkbvWorkshopAnalysis}
                       title="Chi tiết theo Xưởng"
@@ -2748,7 +2676,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                       defaultExcludedKeys={['ABC', 'OTHERS', 'X.ĐB']}
                   />
 
-                  {/* Part 2: By Project - Uses DetailModalTable */}
                   <div className="border-t border-slate-200 pt-6">
                       <DetailModalTable 
                           data={tkbvProjectAnalysis}
@@ -2766,7 +2693,6 @@ const Dashboard: React.FC<DashboardProps> = ({
          </div>
       )}
 
-      {/* --- PTHSP DETAIL MODAL --- */}
       {isPthspDetailModalOpen && (
          <div className={`fixed inset-y-0 right-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-all duration-300
          left-0 ${isSidebarCollapsed ? 'md:left-20' : 'md:left-64'}`}>
@@ -2785,7 +2711,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                </div>
                
                <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 custom-scrollbar">
-                  {/* Part 1: By Workshop - Uses DetailModalTable */}
                   <DetailModalTable 
                       data={pthspWorkshopAnalysis}
                       title="Chi tiết theo Xưởng"
@@ -2798,7 +2723,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                       defaultExcludedKeys={['ABC', 'OTHERS', 'X.ĐB']}
                   />
 
-                  {/* Part 2: By Project - Uses DetailModalTable */}
                   <div className="border-t border-slate-200 pt-6">
                       <DetailModalTable 
                           data={pthspProjectAnalysis}
@@ -2816,7 +2740,6 @@ const Dashboard: React.FC<DashboardProps> = ({
          </div>
       )}
 
-      {/* --- INVENTORY DETAIL MODAL --- */}
       {isInventoryDetailModalOpen && (
          <div className={`fixed inset-y-0 right-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-all duration-300
          left-0 ${isSidebarCollapsed ? 'md:left-20' : 'md:left-64'}`}>
@@ -2835,7 +2758,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                </div>
                
                <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 custom-scrollbar">
-                  {/* Part 1: By Workshop - Uses DetailModalTable */}
                   <DetailModalTable 
                       data={inventoryWorkshopAnalysis}
                       title="Chi tiết theo Xưởng"
@@ -2848,7 +2770,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                       defaultExcludedKeys={['ABC', 'OTHERS', 'X.ĐB']}
                   />
 
-                  {/* Part 2: By Project - Uses DetailModalTable */}
                   <div className="border-t border-slate-200 pt-6">
                       <DetailModalTable 
                           data={inventoryProjectAnalysis}
