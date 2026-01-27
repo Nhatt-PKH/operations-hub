@@ -1,7 +1,6 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { DataRow, ColumnDefinition, TARGET_COLUMN_NAMES } from '../types';
-import { Search, Download, ArrowUpDown, ChevronLeft, ChevronRight, Settings, Check, X, Filter, ChevronDown, RefreshCcw, XCircle, LayoutTemplate } from 'lucide-react';
+import { Search, Download, ArrowUpDown, ChevronLeft, ChevronRight, Settings, Check, X, Filter, ChevronDown, XCircle, LayoutTemplate } from 'lucide-react';
 import { exportToCSV } from '../services/dataService';
 
 interface DataGridProps {
@@ -171,8 +170,7 @@ const DataGrid: React.FC<DataGridProps> = ({
   const [additionalSearchValues, setAdditionalSearchValues] = useState<Record<string, string>>({});
   const [advancedFilters, setAdvancedFilters] = useState<Record<string, string[]>>({});
 
-  // Fix: Generate a stable hash/string for defaultVisibleColumns to avoid infinite loop
-  // when the prop is passed as a new array literal [] on every render.
+  // Generate a stable hash/string for defaultVisibleColumns to avoid infinite loop
   const defaultColsHash = defaultVisibleColumns ? defaultVisibleColumns.join(',') : '';
 
   // Apply default columns on initial load if columns exist
@@ -295,9 +293,9 @@ const DataGrid: React.FC<DataGridProps> = ({
 
     // 4. Dynamic Excel Filters
     Object.entries(advancedFilters).forEach(([header, selectedValues]) => {
-        // Cast as any then to string array to fix 'unknown' errors if inference fails
-        const safeSelectedValues = (selectedValues as any) as string[];
-        if (safeSelectedValues && safeSelectedValues.length > 0) {
+        // Safe access to array property
+        const safeSelectedValues = selectedValues as any;
+        if (Array.isArray(safeSelectedValues) && safeSelectedValues.length > 0) {
             const key = getColumnKey(header);
             if (key) {
                 result = result.filter(row => safeSelectedValues.includes(String(row[key] || '').trim()));
@@ -362,8 +360,7 @@ const DataGrid: React.FC<DataGridProps> = ({
   }, [searchTerm, primaryFilterValue, advancedFilters, additionalSearchValues]);
 
   // Check if any filter is active
-  // Fix unknown type errors by explicit casting inside the callback
-  const hasAdvancedFilters = Object.values(advancedFilters).some((v: string[]) => v && v.length > 0);
+  const hasAdvancedFilters = Object.values(advancedFilters).some((v) => Array.isArray(v) && v.length > 0);
   const hasAdditionalFilters = Object.values(additionalSearchValues).some((v) => v && v.length > 0);
   const isFilterActive = searchTerm !== '' || primaryFilterValue !== '' || hasAdvancedFilters || hasAdditionalFilters;
 
@@ -514,40 +511,35 @@ const DataGrid: React.FC<DataGridProps> = ({
                     </div>
                     {/* Excel Filter Dropdown */}
                     {filterHeaders?.includes(col.key) && (
-                       <div onClick={(e) => e.stopPropagation()}>
-                          <ExcelColumnFilter 
-                            label={col.label.length > 15 ? col.label.substring(0,15)+'...' : col.label} // Short label for filter button
-                            options={getUniqueOptions(col.key)}
-                            // Cast as explicit string array to avoid unknown[] error
-                            selectedValues={(advancedFilters[col.key] as string[]) || []}
-                            onChange={(vals) => setAdvancedFilters(prev => ({ ...prev, [col.key]: vals }))}
-                          />
-                       </div>
+                       <ExcelColumnFilter 
+                          label="Lọc"
+                          options={getUniqueOptions(col.key)}
+                          selectedValues={(advancedFilters[col.key] as string[]) || []}
+                          onChange={(vals) => setAdvancedFilters(prev => ({ ...prev, [col.key]: vals }))}
+                       />
                     )}
                   </div>
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 bg-white text-sm">
+          <tbody className="divide-y divide-slate-100">
             {paginatedData.length > 0 ? (
               paginatedData.map((row, rowIndex) => (
                 <tr key={rowIndex} className="hover:bg-wood-50 transition-colors">
                   <td className="px-4 py-3 text-center text-slate-400 text-xs">{(currentPage - 1) * ROWS_PER_PAGE + rowIndex + 1}</td>
                   {visibleColumns.map((col) => (
-                    <td key={col.key} className="px-4 py-3 truncate max-w-xs" title={String(row[col.key] || '')}>
-                      {row[col.key] || ''}
+                    <td key={col.key} className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">
+                        {/* Basic rendering, can be enhanced for dates/numbers */}
+                        {row[col.key]}
                     </td>
                   ))}
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={visibleColumns.length + 1} className="px-6 py-12 text-center text-slate-400">
-                  <div className="flex flex-col items-center justify-center">
-                    <Search className="w-12 h-12 mb-3 text-slate-200" />
-                    <p>Không tìm thấy dữ liệu phù hợp.</p>
-                  </div>
+                <td colSpan={visibleColumns.length + 1} className="p-8 text-center text-slate-500">
+                  Không tìm thấy dữ liệu phù hợp.
                 </td>
               </tr>
             )}
@@ -556,27 +548,29 @@ const DataGrid: React.FC<DataGridProps> = ({
       </div>
 
       {/* --- Footer / Pagination --- */}
-      <div className="px-4 py-3 border-t border-wood-100 bg-slate-50 flex items-center justify-between text-xs text-slate-500">
-        <div>
-           Hiển thị {Math.min((currentPage - 1) * ROWS_PER_PAGE + 1, processedData.length)} - {Math.min(currentPage * ROWS_PER_PAGE, processedData.length)} trong tổng số {processedData.length} dòng
-        </div>
-        <div className="flex items-center gap-2">
-            <button 
-              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-              disabled={currentPage === 1}
-              className="p-1.5 border border-slate-200 rounded hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <span className="font-medium">Trang {currentPage} / {Math.max(1, totalPages)}</span>
-            <button 
-              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-              disabled={currentPage === totalPages || totalPages === 0}
-              className="p-1.5 border border-slate-200 rounded hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <ChevronRight size={16} />
-            </button>
-        </div>
+      <div className="px-4 py-3 border-t border-wood-100 bg-slate-50 flex items-center justify-between text-xs font-medium text-slate-500">
+         <div>
+            Hiển thị {paginatedData.length} / {processedData.length} dòng
+         </div>
+         {totalPages > 1 && (
+             <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="p-1.5 rounded border border-slate-200 hover:bg-white disabled:opacity-50"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <span>Trang {currentPage} / {totalPages}</span>
+                <button 
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="p-1.5 rounded border border-slate-200 hover:bg-white disabled:opacity-50"
+                >
+                  <ChevronRight size={16} />
+                </button>
+             </div>
+         )}
       </div>
     </div>
   );

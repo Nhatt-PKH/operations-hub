@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { DataRow, ColumnDefinition, TARGET_COLUMN_NAMES } from '../types';
 import { 
@@ -1655,9 +1654,10 @@ const Dashboard: React.FC<DashboardProps> = ({
   const yearlyPlan2026WorkshopChartData = useMemo(() => {
     const yearlyPlanXuongKey = findColumnKey(yearlyPlanColumns, TARGET_COLUMN_NAMES.XUONG);
 
-    if (!yearlyPlanAmountKey || !yearlyPlanYearKey || !yearlyPlanXuongKey) return [];
+    if (!yearlyPlanAmountKey || !yearlyPlanYearKey || !yearlyPlanXuongKey || !invThanhTienKey || !invNamKey || !invXuongKey) return [];
 
-    const agg: Record<string, number> = {};
+    // 1. Plan Aggregation
+    const planAgg: Record<string, number> = {};
     yearlyPlanData.forEach(row => {
         const year = String(row[yearlyPlanYearKey] || '').trim();
         if (year === '2026') {
@@ -1665,14 +1665,32 @@ const Dashboard: React.FC<DashboardProps> = ({
             // Assuming raw data is in Millions (based on existing logic for targetRevenue2026)
             // Divide by 1000 to get Billions
             const val = parseNumber(row[yearlyPlanAmountKey]) / 1000;
-            agg[xuong] = (agg[xuong] || 0) + val;
+            planAgg[xuong] = (planAgg[xuong] || 0) + val;
         }
     });
 
-    return Object.entries(agg)
-        .map(([name, value]) => ({ name, value }))
-        .sort((a, b) => b.value - a.value);
-  }, [yearlyPlanData, yearlyPlanAmountKey, yearlyPlanYearKey, yearlyPlanColumns]);
+    // 2. Actual (Inventory) Aggregation
+    const actualAgg: Record<string, number> = {};
+    inventoryData.forEach(row => {
+         const year = String(row[invNamKey] || '').trim();
+         if (year === '2026') {
+             const xuong = String(row[invXuongKey] || 'Chưa phân xưởng').trim();
+             const val = parseNumber(row[invThanhTienKey]) / 1000;
+             actualAgg[xuong] = (actualAgg[xuong] || 0) + val;
+         }
+    });
+
+    // 3. Merge & Sort
+    const allWorkshops = Array.from(new Set([...Object.keys(planAgg), ...Object.keys(actualAgg)]));
+    
+    return allWorkshops
+        .map(name => ({
+            name,
+            plan: planAgg[name] || 0,
+            actual: actualAgg[name] || 0
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+  }, [yearlyPlanData, inventoryData, yearlyPlanAmountKey, yearlyPlanYearKey, yearlyPlanColumns, invThanhTienKey, invNamKey, invXuongKey]);
 
   if (productionData.length === 0 && materialData.length === 0 && khsxData.length === 0) {
     return (
@@ -1856,11 +1874,19 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 <XAxis dataKey="name" angle={-25} textAnchor="end" height={60} tick={{ fontSize: 10, fill: '#64748b' }} interval={0} />
                                 <YAxis tickFormatter={(val) => formatDecimal(val)} tick={{ fontSize: 10, fill: '#64748b' }} />
                                 <RechartsTooltip 
-                                    formatter={(value: number) => [formatDecimal(value) + ' Tỷ', 'Kế hoạch']}
+                                    formatter={(value: number, name: string) => {
+                                        if (name === 'plan') return [formatDecimal(value) + ' Tỷ', 'Kế hoạch'];
+                                        if (name === 'actual') return [formatDecimal(value) + ' Tỷ', 'Thực hiện'];
+                                        return [value, name];
+                                    }}
                                     contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0' }}
                                 />
-                                <Bar dataKey="value" name="Kế hoạch (Tỷ)" fill="#10b981" radius={[4, 4, 0, 0]} barSize={40}>
-                                    <LabelList dataKey="value" position="top" formatter={(val: number) => formatDecimal(val)} fontSize={10} fill="#059669" />
+                                <Legend verticalAlign="top" height={36} />
+                                <Bar dataKey="plan" name="Kế hoạch (Tỷ)" fill="#10b981" radius={[4, 4, 0, 0]} barSize={20}>
+                                    <LabelList dataKey="plan" position="top" formatter={(val: number) => val > 0 ? formatDecimal(val) : ''} fontSize={10} fill="#059669" />
+                                </Bar>
+                                <Bar dataKey="actual" name="Thực hiện (Tỷ)" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={20}>
+                                    <LabelList dataKey="actual" position="top" formatter={(val: number) => val > 0 ? formatDecimal(val) : ''} fontSize={10} fill="#2563eb" />
                                 </Bar>
                             </BarChart>
                         </ResponsiveContainer>
@@ -2122,10 +2148,10 @@ const Dashboard: React.FC<DashboardProps> = ({
                           <tr key={s} className="hover:bg-slate-50 transition-colors">
                             <td className="px-3 py-2 text-left font-medium text-slate-700 sticky left-0 bg-white hover:bg-slate-50 z-10 whitespace-nowrap border-r border-slate-100">{s}</td>
                             {pivotWorkshopData.uniqueWorkshops.map((w: string) => { 
-                                const val = (pivotWorkshopData?.matrix as any)?.[s]?.[w] || 0; 
+                                const val = pivotWorkshopData!.matrix[s as string]?.[w as string] || 0; 
                                 return (<td key={w} className={`px-3 py-2 whitespace-nowrap ${val === 0 ? 'text-slate-300' : 'text-slate-600'}`}>{val === 0 ? '-' : formatNumber(val, workshopMetric)}</td>); 
                             })}
-                            <td className="px-3 py-2 font-bold text-slate-800 bg-wood-50/50">{formatNumber(pivotWorkshopData.rowTotals[s], workshopMetric)}</td>
+                            <td className="px-3 py-2 font-bold text-slate-800 bg-wood-50/50">{formatNumber(pivotWorkshopData.rowTotals[s as string], workshopMetric)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -2475,10 +2501,10 @@ const Dashboard: React.FC<DashboardProps> = ({
                       <tr key={p} className="hover:bg-slate-50 transition-colors group">
                         <td className="px-3 py-2 text-left font-medium text-slate-700 sticky left-0 bg-white group-hover:bg-slate-50 z-10 whitespace-nowrap border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{p}</td>
                         {pivotProjectData.uniqueStatuses.map((s: string) => { 
-                            const val = (pivotProjectData?.matrix as any)?.[p]?.[s] || 0; 
+                            const val = pivotProjectData!.matrix[p as string]?.[s as string] || 0; 
                             return (<td key={s} className={`px-3 py-2 whitespace-nowrap ${val === 0 ? 'text-slate-300' : 'text-slate-600'}`}>{val === 0 ? '-' : formatNumber(val, projectMetric)}</td>); 
                         })}
-                        <td className="px-3 py-2 font-bold text-slate-800 bg-blue-50/30">{formatNumber(pivotProjectData.rowTotals[p], projectMetric)}</td>
+                        <td className="px-3 py-2 font-bold text-slate-800 bg-blue-50/30">{formatNumber(pivotProjectData.rowTotals[p as string], projectMetric)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -2562,10 +2588,10 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 <tr key={group} className="hover:bg-slate-50 transition-colors group">
                                     <td className="px-3 py-2 text-left font-medium text-slate-700 sticky left-0 bg-white group-hover:bg-slate-50 z-10 whitespace-nowrap border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{group}</td>
                                     {pivotMaterialStatusData.uniqueStatuses.map((s: string) => { 
-                                        const val = (pivotMaterialStatusData?.matrix as any)?.[group]?.[s] || 0; 
+                                        const val = pivotMaterialStatusData!.matrix[group as string]?.[s as string] || 0; 
                                         return (<td key={s} className={`px-3 py-2 whitespace-nowrap ${val === 0 ? 'text-slate-300' : 'text-slate-600'}`}>{val === 0 ? '-' : (matStatusMetric === 'SUM_QTY' ? formatDecimal(val) : formatNumber(val))}</td>); 
                                     })}
-                                    <td className="px-3 py-2 font-bold text-slate-800 bg-emerald-50/30">{matStatusMetric === 'SUM_QTY' ? formatDecimal(pivotMaterialStatusData.rowTotals[group]) : formatNumber(pivotMaterialStatusData.rowTotals[group])}</td>
+                                    <td className="px-3 py-2 font-bold text-slate-800 bg-emerald-50/30">{matStatusMetric === 'SUM_QTY' ? formatDecimal(pivotMaterialStatusData.rowTotals[group as string]) : formatNumber(pivotMaterialStatusData.rowTotals[group as string])}</td>
                                 </tr>
                             ))}
                         </tbody>
