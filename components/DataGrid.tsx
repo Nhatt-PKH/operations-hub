@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { DataRow, ColumnDefinition, TARGET_COLUMN_NAMES } from '../types';
 import { Search, Download, ArrowUpDown, ChevronLeft, ChevronRight, Settings, Check, X, Filter, ChevronDown, XCircle, LayoutTemplate } from 'lucide-react';
@@ -361,7 +362,7 @@ const DataGrid: React.FC<DataGridProps> = ({
   }, [searchTerm, primaryFilterValue, advancedFilters, additionalSearchValues]);
 
   // Check if any filter is active
-  const hasAdvancedFilters = Object.values(advancedFilters).some((v) => Array.isArray(v) && v.length > 0);
+  const hasAdvancedFilters = Object.values(advancedFilters).some((v: any) => Array.isArray(v) && v.length > 0);
   const hasAdditionalFilters = Object.values(additionalSearchValues).some((v) => v && v.length > 0);
   const isFilterActive = searchTerm !== '' || primaryFilterValue !== '' || hasAdvancedFilters || hasAdditionalFilters;
 
@@ -515,7 +516,7 @@ const DataGrid: React.FC<DataGridProps> = ({
                        <ExcelColumnFilter 
                           label="Lọc"
                           options={getUniqueOptions(col.key)}
-                          selectedValues={(advancedFilters[col.key] as string[]) ?? []}
+                          selectedValues={(advancedFilters[col.key] as any) ?? []}
                           onChange={(vals) => setAdvancedFilters(prev => ({ ...prev, [col.key]: vals }))}
                        />
                     )}

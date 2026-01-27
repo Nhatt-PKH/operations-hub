@@ -1,3 +1,5 @@
+
+
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { DataRow, ColumnDefinition, TARGET_COLUMN_NAMES } from '../types';
 import { 
@@ -1589,6 +1591,10 @@ const YearlyPlanWorkshopTooltip = ({ active, payload, label }: any) => {
   const yearlyPlan2026WorkshopChartData = useMemo(() => {
     const yearlyPlanXuongKey = findColumnKey(yearlyPlanColumns, TARGET_COLUMN_NAMES.XUONG);
     if (!yearlyPlanAmountKey || !yearlyPlanYearKey || !yearlyPlanXuongKey || !invThanhTienKey || !invNamKey || !invXuongKey) return [];
+    
+    // Define target workshops as requested
+    const TARGET_WORKSHOPS = ['2A', '3A', '4A', '5A', '8AB', '8C'];
+
     const planAgg: Record<string, number> = {};
     yearlyPlanData.forEach(row => {
         const year = String(row[yearlyPlanYearKey] || '').trim();
@@ -1608,7 +1614,10 @@ const YearlyPlanWorkshopTooltip = ({ active, payload, label }: any) => {
          }
     });
     const allWorkshops = Array.from(new Set([...Object.keys(planAgg), ...Object.keys(actualAgg)]));
+    
+    // Filter only target workshops
     return allWorkshops
+        .filter(name => TARGET_WORKSHOPS.includes(name))
         .map(name => ({
             name,
             plan: planAgg[name] || 0,
@@ -2082,19 +2091,19 @@ const YearlyPlanWorkshopTooltip = ({ active, payload, label }: any) => {
                       <thead className="bg-wood-50 text-slate-700 font-semibold uppercase">
                         <tr>
                           <th className="px-3 py-2 text-left sticky left-0 bg-wood-50 border-b border-wood-200 z-10 min-w-[180px]">Tình Trạng / Xưởng</th>
-                          {pivotWorkshopData.uniqueWorkshops.map(w => (<th key={w} className="px-3 py-2 border-b border-wood-200 whitespace-nowrap text-wood-800">{w}</th>))}
+                          {(pivotWorkshopData.uniqueWorkshops as any[]).map((w: any) => (<th key={w} className="px-3 py-2 border-b border-wood-200 whitespace-nowrap text-wood-800">{w}</th>))}
                           <th className="px-3 py-2 bg-wood-100 border-b border-wood-200 font-bold text-slate-800">Tổng Cộng</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {pivotWorkshopData.uniqueStatuses.map((s: string) => (
+                        {(pivotWorkshopData.uniqueStatuses as any[]).map((s: any) => (
                           <tr key={s} className="hover:bg-slate-50 transition-colors">
                             <td className="px-3 py-2 text-left font-medium text-slate-700 sticky left-0 bg-white hover:bg-slate-50 z-10 whitespace-nowrap border-r border-slate-100">{s}</td>
-                            {(pivotWorkshopData.uniqueWorkshops as string[]).map((w: string) => { 
-                                const val = pivotWorkshopData!.matrix[s as string]?.[w as string] || 0; 
+                            {(pivotWorkshopData.uniqueWorkshops as any[]).map((w: any) => { 
+                                const val = pivotWorkshopData!.matrix[String(s)]?.[String(w)] || 0; 
                                 return (<td key={w} className={`px-3 py-2 whitespace-nowrap ${val === 0 ? 'text-slate-300' : 'text-slate-600'}`}>{val === 0 ? '-' : formatNumber(val, workshopMetric)}</td>); 
                             })}
-                            <td className="px-3 py-2 font-bold text-slate-800 bg-wood-50/50">{formatNumber(pivotWorkshopData.rowTotals[s as string], workshopMetric)}</td>
+                            <td className="px-3 py-2 font-bold text-slate-800 bg-wood-50/50">{formatNumber(pivotWorkshopData.rowTotals[String(s)], workshopMetric)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -2429,19 +2438,19 @@ const YearlyPlanWorkshopTooltip = ({ active, payload, label }: any) => {
                   <thead className="bg-blue-50/50 text-slate-700 font-semibold uppercase">
                     <tr>
                       <th className="px-3 py-2 text-left sticky left-0 top-0 bg-blue-100 border-b border-blue-200 z-30 min-w-[200px] shadow-[1px_1px_2px_rgba(0,0,0,0.05)]">Tên Công Trình</th>
-                      {pivotProjectData.uniqueStatuses.map(s => (<th key={s} className="px-3 py-2 border-b border-blue-200 whitespace-nowrap text-blue-900 sticky top-0 bg-blue-50 z-20">{s}</th>))}
+                      {(pivotProjectData.uniqueStatuses as any[]).map((s: any) => (<th key={s} className="px-3 py-2 border-b border-blue-200 whitespace-nowrap text-blue-900 sticky top-0 bg-blue-50 z-20">{s}</th>))}
                       <th className="px-3 py-2 bg-blue-100 border-b border-blue-200 font-bold text-slate-800 sticky top-0 right-0 z-20">Tổng Cộng</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {pivotProjectData.uniqueProjects.map((p: string) => (
+                    {(pivotProjectData.uniqueProjects as any[]).map((p: any) => (
                       <tr key={p} className="hover:bg-slate-50 transition-colors group">
                         <td className="px-3 py-2 text-left font-medium text-slate-700 sticky left-0 bg-white group-hover:bg-slate-50 z-10 whitespace-nowrap border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{p}</td>
-                        {pivotProjectData.uniqueStatuses.map((s: string) => { 
-                            const val = pivotProjectData!.matrix[p as string]?.[s as string] || 0; 
+                        {(pivotProjectData.uniqueStatuses as any[]).map((s: any) => { 
+                            const val = pivotProjectData!.matrix[String(p)]?.[String(s)] || 0; 
                             return (<td key={s} className={`px-3 py-2 whitespace-nowrap ${val === 0 ? 'text-slate-300' : 'text-slate-600'}`}>{val === 0 ? '-' : formatNumber(val, projectMetric)}</td>); 
                         })}
-                        <td className="px-3 py-2 font-bold text-slate-800 bg-blue-50/30">{formatNumber(pivotProjectData.rowTotals[p as string], projectMetric)}</td>
+                        <td className="px-3 py-2 font-bold text-slate-800 bg-blue-50/30">{formatNumber(pivotProjectData.rowTotals[String(p)], projectMetric)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -2514,19 +2523,19 @@ const YearlyPlanWorkshopTooltip = ({ active, payload, label }: any) => {
                         <thead className="bg-emerald-50 text-slate-700 font-semibold uppercase">
                             <tr>
                                 <th className="px-3 py-2 text-left sticky left-0 top-0 bg-emerald-100 border-b border-emerald-200 z-30 min-w-[200px] shadow-[1px_1px_2px_rgba(0,0,0,0.05)]">Nhóm Vật Tư</th>
-                                {pivotMaterialStatusData.uniqueStatuses.map(s => (<th key={s} className="px-3 py-2 border-b border-emerald-200 whitespace-nowrap text-emerald-900 sticky top-0 bg-emerald-50 z-20">{s}</th>))}
+                                {(pivotMaterialStatusData.uniqueStatuses as any[]).map((s: any) => (<th key={s} className="px-3 py-2 border-b border-emerald-200 whitespace-nowrap text-emerald-900 sticky top-0 bg-emerald-50 z-20">{s}</th>))}
                                 <th className="px-3 py-2 bg-emerald-100 border-b border-emerald-200 font-bold text-slate-800 sticky top-0 right-0 z-20">Tổng Cộng</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {pivotMaterialStatusData.sortedGroups.map((group: string) => (
+                            {(pivotMaterialStatusData.sortedGroups as any[]).map((group: any) => (
                                 <tr key={group} className="hover:bg-slate-50 transition-colors group">
                                     <td className="px-3 py-2 text-left font-medium text-slate-700 sticky left-0 bg-white group-hover:bg-slate-50 z-10 whitespace-nowrap border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{group}</td>
-                                    {(pivotMaterialStatusData.uniqueStatuses as string[]).map((s: string) => { 
-                                        const val = pivotMaterialStatusData!.matrix[group as string]?.[s as string] || 0; 
+                                    {(pivotMaterialStatusData.uniqueStatuses as any[]).map((s: any) => { 
+                                        const val = pivotMaterialStatusData!.matrix[String(group)]?.[String(s)] || 0; 
                                         return (<td key={s} className={`px-3 py-2 whitespace-nowrap ${val === 0 ? 'text-slate-300' : 'text-slate-600'}`}>{val === 0 ? '-' : (matStatusMetric === 'SUM_QTY' ? formatDecimal(val) : formatNumber(val))}</td>); 
                                     })}
-                                    <td className="px-3 py-2 font-bold text-slate-800 bg-emerald-50/30">{matStatusMetric === 'SUM_QTY' ? formatDecimal(pivotMaterialStatusData.rowTotals[group as string]) : formatNumber(pivotMaterialStatusData.rowTotals[group as string])}</td>
+                                    <td className="px-3 py-2 font-bold text-slate-800 bg-emerald-50/30">{matStatusMetric === 'SUM_QTY' ? formatDecimal(pivotMaterialStatusData.rowTotals[String(group)]) : formatNumber(pivotMaterialStatusData.rowTotals[String(group)])}</td>
                                 </tr>
                             ))}
                         </tbody>
