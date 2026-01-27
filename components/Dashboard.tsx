@@ -1260,7 +1260,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               map.set(item.name, { name: item.name, code: item.code, khValue: 0, thValue: item.value });
           }
       });
-      return Array.from(map.values()).sort((a, b) => Math.max(b.khValue, b.thValue) - Math.max(a.khValue, a.thValue)).slice(0, 15);
+      return Array.from(map.values()).sort((a, b) => Math.max(b.khValue, b.thValue) - Math.max(a.khValue, a.thValue)).slice(0, 10);
   }, [khsxProjectChartData, inventoryProjectChartData]);
 
   const completionRate = useMemo(() => totalKhsxAmount > 0 ? (totalInventoryAmount / totalKhsxAmount) * 100 : 0, [totalInventoryAmount, totalKhsxAmount]);
@@ -1460,24 +1460,35 @@ const Dashboard: React.FC<DashboardProps> = ({
   const ProjectChartTooltip = ({ active, payload, label }: any) => {
   const formatValue = (value: any) => {
     if (value === null || value === undefined) return '0';
-    return Number(value).toFixed(1); 
+    return Number(value).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
   };
 
   if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    const plan = data.khValue || 0;
+    const actual = data.thValue || 0;
+    const percent = plan > 0 ? (actual / plan) * 100 : 0;
+
     return (
       <div className="bg-white p-3 border border-slate-200 rounded-lg shadow-lg">
-        <p className="text-xs font-bold text-slate-700 mb-2">{payload[0].payload.name}</p>
+        <p className="text-xs font-bold text-slate-700 mb-2">{data.name}</p>
         <div className="flex flex-col gap-1">
             <div className="flex items-center justify-between gap-4">
-                <span className="text-xs text-orange-600 font-medium">Kế hoạch:</span>
-                <span className="text-sm font-bold text-orange-700">
-                  {formatValue(payload[0].payload.khValue)}
+                <span className="text-xs text-emerald-600 font-medium">Kế hoạch:</span>
+                <span className="text-sm font-bold text-emerald-700">
+                  {formatValue(plan)}
                 </span>
             </div>
             <div className="flex items-center justify-between gap-4">
-                <span className="text-xs text-indigo-600 font-medium">Thực hiện:</span>
-                <span className="text-sm font-bold text-indigo-700">
-                  {formatValue(payload[0].payload.thValue)}
+                <span className="text-xs text-blue-600 font-medium">Thực hiện:</span>
+                <span className="text-sm font-bold text-blue-700">
+                  {formatValue(actual)}
+                </span>
+            </div>
+            <div className="flex items-center justify-between gap-4 border-t border-slate-100 pt-1 mt-1">
+                <span className="text-xs text-slate-500 font-medium">% Đạt:</span>
+                <span className={`text-sm font-bold ${percent >= 80 ? 'text-emerald-600' : percent >= 50 ? 'text-amber-600' : 'text-red-500'}`}>
+                    {percent.toLocaleString('en-US', { maximumFractionDigits: 1 })}%
                 </span>
             </div>
         </div>
@@ -1490,24 +1501,35 @@ const Dashboard: React.FC<DashboardProps> = ({
 const WorkshopChartTooltip = ({ active, payload, label }: any) => {
     const formatValue = (value: any) => {
         if (value === null || value === undefined) return '0';
-        return Number(value).toFixed(1);
+        return Number(value).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
     };
 
     if (active && payload && payload.length) {
+        const data = payload[0].payload;
+        const plan = data.khValue || 0;
+        const actual = data.thValue || 0;
+        const percent = plan > 0 ? (actual / plan) * 100 : 0;
+
         return (
             <div className="bg-white p-3 border border-slate-200 rounded-lg shadow-lg">
-                <p className="text-xs font-bold text-slate-700 mb-2">{payload[0].payload.name}</p>
+                <p className="text-xs font-bold text-slate-700 mb-2">{data.name}</p>
                 <div className="flex flex-col gap-1">
                     <div className="flex items-center justify-between gap-4">
-                        <span className="text-xs text-orange-600 font-medium">Kế hoạch:</span>
-                        <span className="text-sm font-bold text-orange-700">
-                            {formatValue(payload[0].payload.khValue)}
+                        <span className="text-xs text-emerald-600 font-medium">Kế hoạch:</span>
+                        <span className="text-sm font-bold text-emerald-700">
+                            {formatValue(plan)}
                         </span>
                     </div>
                     <div className="flex items-center justify-between gap-4">
-                        <span className="text-xs text-indigo-600 font-medium">Thực hiện:</span>
-                        <span className="text-sm font-bold text-indigo-700">
-                            {formatValue(payload[0].payload.thValue)}
+                        <span className="text-xs text-blue-600 font-medium">Thực hiện:</span>
+                        <span className="text-sm font-bold text-blue-700">
+                            {formatValue(actual)}
+                        </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-4 border-t border-slate-100 pt-1 mt-1">
+                        <span className="text-xs text-slate-500 font-medium">% Đạt:</span>
+                        <span className={`text-sm font-bold ${percent >= 80 ? 'text-emerald-600' : percent >= 50 ? 'text-amber-600' : 'text-red-500'}`}>
+                            {percent.toLocaleString('en-US', { maximumFractionDigits: 1 })}%
                         </span>
                     </div>
                 </div>
@@ -2333,22 +2355,68 @@ const YearlyPlanWorkshopTooltip = ({ active, payload, label }: any) => {
                             <YAxis tickFormatter={formatDecimal} tick={{fontSize: 10}} width={45} domain={['auto', 'auto']} />
                             <RechartsTooltip content={<WorkshopChartTooltip />} cursor={{fill: '#f8fafc'}}/>
                             <Legend verticalAlign="top" height={36} iconType="circle" />
-                            <Bar dataKey="khValue" name="Kế hoạch (KH)" fill="#f97316" radius={[4, 4, 0, 0]} barSize={20}><LabelList position="top" formatter={formatDecimal} fontSize={10} fill="#c2410c" /></Bar>
-                            <Bar dataKey="thValue" name="Thực hiện (TH)" fill="#4f46e5" radius={[4, 4, 0, 0]} barSize={20}><LabelList position="top" formatter={formatDecimal} fontSize={10} fill="#4338ca" /></Bar>
+                            <Bar dataKey="khValue" name="Kế hoạch (KH)" fill="#10b981" radius={[4, 4, 0, 0]} barSize={20}><LabelList position="top" formatter={formatDecimal} fontSize={10} fill="#059669" /></Bar>
+                            <Bar dataKey="thValue" name="Thực hiện (TH)" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={20}>
+                                <LabelList 
+                                    dataKey="thValue" 
+                                    position="top" 
+                                    content={(props: any) => {
+                                        const { x, y, width, value, index } = props;
+                                        // Use index to find the corresponding plan value from data
+                                        const item = combinedWorkshopData[index];
+                                        const plan = item?.khValue || 0;
+                                        const actual = Number(value) || 0;
+
+                                        if (actual <= 0) return null;
+
+                                        const percent = plan > 0 ? (actual / plan) * 100 : 0;
+
+                                        return (
+                                            <text x={x + width / 2} y={y - 15} fill="#2563eb" fontSize={10} textAnchor="middle">
+                                                <tspan x={x + width / 2} dy="0">{formatDecimal(actual)}</tspan>
+                                                <tspan x={x + width / 2} dy="12">({Math.round(percent)}%)</tspan>
+                                            </text>
+                                        );
+                                    }} 
+                                />
+                            </Bar>
                           </BarChart>
                         </ResponsiveContainer>
                     </div>
                     <div className="h-[350px] w-full bg-slate-50 rounded-lg border border-slate-100 p-3 relative group hover:shadow-md transition-shadow">
-                        <div className="absolute top-3 left-4 text-xs font-bold text-slate-600 uppercase z-10 bg-white/80 px-2 py-1 rounded backdrop-blur-sm shadow-sm">SO SÁNH: KH vs TH (Theo Công Trình - Top 15)</div>
+                        <div className="absolute top-3 left-4 text-xs font-bold text-slate-600 uppercase z-10 bg-white/80 px-2 py-1 rounded backdrop-blur-sm shadow-sm">SO SÁNH: KH vs TH (Theo Công Trình - Top 10)</div>
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={combinedProjectData} margin={{ top: 35, right: 30, left: 10, bottom: 80 }}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                            <XAxis dataKey="code" angle={-45} textAnchor="end" height={80} tick={{fontSize: 10}} interval={0}/>
+                            <XAxis dataKey="code" angle={-50} textAnchor="end" height={80} tick={{fontSize: 10}} interval={0}/>
                             <YAxis tickFormatter={formatDecimal} tick={{fontSize: 10}} width={45} domain={['auto', 'auto']} />
                             <RechartsTooltip content={<ProjectChartTooltip />} cursor={{fill: '#f8fafc'}}/>
                             <Legend verticalAlign="top" height={36} iconType="circle" />
-                            <Bar dataKey="khValue" name="Kế hoạch (KH)" fill="#f97316" radius={[4, 4, 0, 0]} barSize={15}><LabelList position="top" formatter={formatDecimal} fontSize={9} fill="#c2410c" /></Bar>
-                            <Bar dataKey="thValue" name="Thực hiện (TH)" fill="#4f46e5" radius={[4, 4, 0, 0]} barSize={15}><LabelList position="top" formatter={formatDecimal} fontSize={9} fill="#4338ca" /></Bar>
+                            <Bar dataKey="khValue" name="Kế hoạch (KH)" fill="#10b981" radius={[4, 4, 0, 0]} barSize={15}><LabelList position="top" formatter={formatDecimal} fontSize={9} fill="#059669" /></Bar>
+                            <Bar dataKey="thValue" name="Thực hiện (TH)" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={15}>
+                                <LabelList 
+                                    dataKey="thValue" 
+                                    position="top" 
+                                    content={(props: any) => {
+                                        const { x, y, width, value, index } = props;
+                                        // Use index to find the corresponding plan value from data
+                                        const item = combinedProjectData[index];
+                                        const plan = item?.khValue || 0;
+                                        const actual = Number(value) || 0;
+
+                                        if (actual <= 0) return null;
+
+                                        const percent = plan > 0 ? (actual / plan) * 100 : 0;
+
+                                        return (
+                                            <text x={x + width / 2} y={y - 15} fill="#2563eb" fontSize={9} textAnchor="middle">
+                                                <tspan x={x + width / 2} dy="0">{formatDecimal(actual)}</tspan>
+                                                <tspan x={x + width / 2} dy="12">({Math.round(percent)}%)</tspan>
+                                            </text>
+                                        );
+                                    }} 
+                                />
+                            </Bar>
                           </BarChart>
                         </ResponsiveContainer>
                     </div>
