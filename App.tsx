@@ -85,6 +85,8 @@ const DashboardWrapper = () => {
             tkbvColumns={context.tkbvColumns}
             pthspData={context.pthspData}
             pthspColumns={context.pthspColumns}
+            analysisData={context.analysisData}
+            analysisColumns={context.analysisColumns}
             yearlyPlanData={context.yearlyPlanData}
             yearlyPlanColumns={context.yearlyPlanColumns}
             isSidebarCollapsed={context.isSidebarCollapsed}

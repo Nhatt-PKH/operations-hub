@@ -1,5 +1,3 @@
-
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { DataRow, ColumnDefinition, TARGET_COLUMN_NAMES } from '../types';
 import { Search, Download, ArrowUpDown, ChevronLeft, ChevronRight, Settings, Check, X, Filter, ChevronDown, XCircle, LayoutTemplate } from 'lucide-react';
@@ -295,8 +293,8 @@ const DataGrid: React.FC<DataGridProps> = ({
 
     // 4. Dynamic Excel Filters
     Object.entries(advancedFilters).forEach(([header, selectedValues]) => {
-        // Safe access to array property - Fix: explicit cast for TS
-        const safeSelectedValues = selectedValues as string[];
+        // Safe access to array property
+        const safeSelectedValues = selectedValues as unknown as string[];
         if (Array.isArray(safeSelectedValues) && safeSelectedValues.length > 0) {
             const key = getColumnKey(header);
             if (key) {
@@ -359,220 +357,212 @@ const DataGrid: React.FC<DataGridProps> = ({
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, primaryFilterValue, advancedFilters, additionalSearchValues]);
-
-  // Check if any filter is active
-  const hasAdvancedFilters = Object.values(advancedFilters).some((v: any) => Array.isArray(v) && v.length > 0);
-  const hasAdditionalFilters = Object.values(additionalSearchValues).some((v) => v && v.length > 0);
-  const isFilterActive = searchTerm !== '' || primaryFilterValue !== '' || hasAdvancedFilters || hasAdditionalFilters;
+  }, [searchTerm, primaryFilterValue, additionalSearchValues, advancedFilters]);
 
   return (
-    <div className="flex flex-col h-full bg-white md:rounded-tl-2xl shadow-inner overflow-hidden">
-      
-      {/* --- Main Toolbar --- */}
-      <div className="px-4 py-3 border-b border-wood-100 bg-white z-20 sticky top-0">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          
-          {/* Global Search */}
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Tìm kiếm tất cả..."
-              className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-wood-400 w-full shadow-sm"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            
-            {/* Default Columns Button */}
-            {defaultVisibleColumns.length > 0 && (
-                <button 
-                onClick={applyDefaultView}
-                className={`flex items-center gap-2 px-3 py-2 border rounded-lg transition-colors text-sm font-medium ${isDefaultView ? 'bg-wood-100 border-wood-300 text-wood-800' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-                title="Khôi phục cột mặc định"
-                >
-                <LayoutTemplate size={16} />
-                <span className="hidden sm:inline">Cột mặc định</span>
-                </button>
-            )}
-
-            {/* Show/Hide Columns Button */}
-            <div className="relative" ref={colMenuRef}>
-              <button 
-                onClick={() => setIsColumnMenuOpen(!isColumnMenuOpen)}
-                className={`flex items-center gap-2 px-3 py-2 border rounded-lg transition-colors text-sm font-medium ${!isDefaultView && hiddenColumns.length > 0 ? 'bg-slate-100 border-slate-300 text-slate-800' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-                title="Tùy chỉnh cột hiển thị"
-              >
-                <Settings size={16} />
-                <span className="hidden sm:inline">Cột hiển thị</span>
-              </button>
-
-              {isColumnMenuOpen && (
-                <div className="absolute right-0 top-full mt-2 w-64 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-[400px] flex flex-col">
-                  <div className="p-3 border-b border-slate-100 font-semibold text-slate-700 flex justify-between items-center">
-                    <span>Chọn cột hiển thị</span>
-                    <button onClick={() => setIsColumnMenuOpen(false)}><X size={16} className="text-slate-400 hover:text-slate-600"/></button>
-                  </div>
-                  <div className="overflow-y-auto p-2 custom-scrollbar flex-1">
-                    {columns.map(col => (
-                      <label key={col.key} className="flex items-center gap-3 p-2 hover:bg-wood-50 rounded cursor-pointer">
-                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${!hiddenColumns.includes(col.key) ? 'bg-wood-600 border-wood-600' : 'border-slate-300 bg-white'}`}>
-                          {!hiddenColumns.includes(col.key) && <Check size={14} className="text-white" />}
-                        </div>
-                        <input 
-                          type="checkbox" 
-                          className="hidden"
-                          checked={!hiddenColumns.includes(col.key)}
-                          onChange={() => toggleColumnVisibility(col.key)}
-                        />
-                        <span className="text-sm text-slate-700">{col.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                  <div className="p-2 border-t border-slate-100 bg-slate-50 rounded-b-xl flex justify-between">
-                     <button onClick={() => setHiddenColumns([])} className="text-xs text-wood-600 hover:underline px-2">Hiện tất cả</button>
-                     <button onClick={() => setHiddenColumns(columns.map(c => c.key))} className="text-xs text-slate-500 hover:underline px-2">Ẩn tất cả</button>
-                  </div>
-                </div>
-              )}
+    <div className="flex flex-col h-full bg-white rounded-lg shadow-sm border border-slate-200">
+      {/* Toolbar */}
+      <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row gap-4 justify-between items-center bg-slate-50/50">
+        
+        {/* Left: Search & Filters */}
+        <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto items-center">
+            {/* Primary Search */}
+            <div className="relative w-full md:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                <input 
+                    type="text" 
+                    placeholder={primarySearchColumn.label} 
+                    className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-wood-400"
+                    value={primaryFilterValue}
+                    onChange={e => setPrimaryFilterValue(e.target.value)}
+                />
             </div>
 
-            {/* Export Button */}
-            <button 
-              onClick={handleExport}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-wood-600 text-white rounded-lg hover:bg-wood-700 transition-colors shadow-sm text-sm font-medium"
-            >
-              <Download className="w-4 h-4" />
-              <span className="hidden sm:inline">Xuất Excel</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* --- Advanced Filter Bar --- */}
-      <div className="px-4 py-3 bg-slate-50 border-b border-wood-100 z-10 flex flex-wrap gap-3 items-end">
-        
-        {/* Primary Filter */}
-        <div className="flex flex-col gap-1 w-full sm:w-auto sm:min-w-[180px]">
-          <label className="text-[10px] text-black font-bold uppercase tracking-wider">{primarySearchColumn.label}</label>
-          <div className="relative">
-             <input
-               type="text"
-               placeholder="Nhập giá trị..."
-               className="w-full pl-3 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-wood-400 focus:border-wood-400"
-               value={primaryFilterValue}
-               onChange={(e) => setPrimaryFilterValue(e.target.value)}
-             />
-          </div>
-        </div>
-
-        {/* Additional Search Filters */}
-        {additionalSearchColumns.map((colConfig, idx) => (
-             <div key={`add-search-${idx}`} className="flex flex-col gap-1 w-full sm:w-auto sm:min-w-[180px]">
-                <label className="text-[10px] text-black font-bold uppercase tracking-wider">{colConfig.label}</label>
-                <div className="relative">
-                   <input
-                     type="text"
-                     placeholder="Nhập giá trị..."
-                     className="w-full pl-3 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-wood-400 focus:border-wood-400"
-                     value={additionalSearchValues[colConfig.header] || ''}
-                     onChange={(e) => setAdditionalSearchValues(prev => ({ ...prev, [colConfig.header]: e.target.value }))}
-                   />
+            {/* Additional Search Columns */}
+            {additionalSearchColumns.map((colConfig, idx) => (
+                <div key={idx} className="relative w-full md:w-48">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                    <input 
+                        type="text" 
+                        placeholder={colConfig.label} 
+                        className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-wood-400"
+                        value={additionalSearchValues[colConfig.header] || ''}
+                        onChange={e => setAdditionalSearchValues(prev => ({ ...prev, [colConfig.header]: e.target.value }))}
+                    />
                 </div>
-             </div>
-        ))}
+            ))}
 
-        {isFilterActive && (
-           <button 
-             onClick={clearAllFilters}
-             className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium pb-2 ml-auto sm:ml-0"
-           >
-             <XCircle size={14} /> Xóa bộ lọc
-           </button>
-        )}
+            {/* Global Search */}
+            <div className="relative w-full md:w-64">
+                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                <input 
+                    type="text" 
+                    placeholder="Lọc trong bảng..." 
+                    className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-wood-400"
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                />
+            </div>
+
+            {/* Clear Filters Button */}
+            {(searchTerm || primaryFilterValue || Object.keys(additionalSearchValues).some(k => additionalSearchValues[k]) || Object.keys(advancedFilters).some(k => advancedFilters[k]?.length > 0)) && (
+                <button 
+                    onClick={clearAllFilters}
+                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg border border-red-100 transition-colors"
+                    title="Xóa tất cả bộ lọc"
+                >
+                    <XCircle size={18} />
+                </button>
+            )}
+        </div>
+
+        {/* Right: Actions */}
+        <div className="flex gap-2">
+            {/* Dynamic Column Filters (Excel-style) */}
+            {filterHeaders.map(header => {
+                // Ensure unique key for dropdown, fallback to header name
+                const key = header;
+                // Only render if column exists in data
+                const colKey = getColumnKey(header);
+                if (!colKey) return null;
+
+                return (
+                    <ExcelColumnFilter 
+                        key={key}
+                        label={header}
+                        options={getUniqueOptions(colKey)}
+                        selectedValues={advancedFilters[header] || []}
+                        onChange={(vals) => setAdvancedFilters(prev => ({ ...prev, [header]: vals }))}
+                    />
+                );
+            })}
+
+            {/* Column Visibility Menu */}
+            <div className="relative" ref={colMenuRef}>
+                <button 
+                    onClick={() => setIsColumnMenuOpen(!isColumnMenuOpen)}
+                    className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors shadow-sm"
+                >
+                    <LayoutTemplate size={16} />
+                    <span className="hidden sm:inline text-sm font-medium">Cột</span>
+                </button>
+                
+                {isColumnMenuOpen && (
+                    <div className="absolute right-0 top-full mt-2 w-64 bg-white border border-slate-200 rounded-xl shadow-xl z-50 flex flex-col max-h-[400px]">
+                        <div className="p-3 border-b border-slate-100 bg-slate-50 rounded-t-xl flex justify-between items-center">
+                            <h4 className="font-bold text-sm text-slate-700">Hiển thị cột</h4>
+                            <button 
+                                onClick={applyDefaultView}
+                                className="text-[10px] text-blue-600 hover:underline font-medium"
+                            >
+                                Mặc định
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
+                            {columns.map(col => (
+                                <label key={col.key} className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer">
+                                    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${!hiddenColumns.includes(col.key) ? 'bg-wood-600 border-wood-600 text-white' : 'border-slate-300'}`}>
+                                        {!hiddenColumns.includes(col.key) && <Check size={12} />}
+                                    </div>
+                                    <input 
+                                        type="checkbox" 
+                                        className="hidden"
+                                        checked={!hiddenColumns.includes(col.key)}
+                                        onChange={() => toggleColumnVisibility(col.key)}
+                                    />
+                                    <span className="text-sm text-slate-700 truncate">{col.label}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            <button 
+                onClick={handleExport}
+                className="flex items-center gap-2 px-3 py-2 bg-wood-600 text-white rounded-lg hover:bg-wood-700 transition-colors shadow-sm"
+            >
+                <Download size={16} />
+                <span className="hidden sm:inline text-sm font-medium">Xuất CSV</span>
+            </button>
+        </div>
       </div>
 
-      {/* --- Table --- */}
-      <div className="flex-1 overflow-auto custom-scrollbar relative">
+      {/* Table Area */}
+      <div className="flex-1 overflow-auto custom-scrollbar">
         <table className="w-full text-left border-collapse min-w-[1000px]">
-          <thead className="bg-slate-50 sticky top-0 z-10 text-xs font-bold text-slate-500 uppercase tracking-wider shadow-sm">
+          <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
             <tr>
-              <th className="px-4 py-3 border-b border-slate-200 w-10 text-center">#</th>
-              {visibleColumns.map((col) => (
-                <th key={col.key} className="px-4 py-3 border-b border-slate-200 whitespace-nowrap group">
-                  <div className="flex flex-col gap-1">
-                    <div 
-                      className="flex items-center gap-1 cursor-pointer hover:text-slate-800"
-                      onClick={() => handleSort(col.key)}
+                <th className="px-4 py-3 text-center border-b border-slate-200 text-xs font-bold text-slate-500 uppercase w-12">#</th>
+                {visibleColumns.map(col => (
+                    <th 
+                        key={col.key} 
+                        className="px-4 py-3 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-slate-100 transition-colors group"
+                        onClick={() => handleSort(col.key)}
                     >
-                      {col.label}
-                      <ArrowUpDown size={12} className={`text-slate-400 ${sortConfig?.key === col.key ? 'text-wood-600 opacity-100' : 'opacity-0 group-hover:opacity-50'}`} />
-                    </div>
-                    {/* Excel Filter Dropdown */}
-                    {filterHeaders?.includes(col.key) && (
-                       <ExcelColumnFilter 
-                          label="Lọc"
-                          options={getUniqueOptions(col.key)}
-                          selectedValues={(advancedFilters[col.key] as any) ?? []}
-                          onChange={(vals) => setAdvancedFilters(prev => ({ ...prev, [col.key]: vals }))}
-                       />
-                    )}
-                  </div>
-                </th>
-              ))}
+                        <div className="flex items-center gap-1">
+                            {col.label}
+                            <ArrowUpDown size={12} className={`text-slate-300 transition-colors ${sortConfig?.key === col.key ? 'text-wood-600' : 'group-hover:text-slate-400'}`} />
+                        </div>
+                    </th>
+                ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-slate-100 bg-white">
             {paginatedData.length > 0 ? (
-              paginatedData.map((row, rowIndex) => (
-                <tr key={rowIndex} className="hover:bg-wood-50 transition-colors">
-                  <td className="px-4 py-3 text-center text-slate-400 text-xs">{(currentPage - 1) * ROWS_PER_PAGE + rowIndex + 1}</td>
-                  {visibleColumns.map((col) => (
-                    <td key={col.key} className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">
-                        {/* Basic rendering, can be enhanced for dates/numbers */}
-                        {row[col.key]}
-                    </td>
-                  ))}
-                </tr>
-              ))
+                paginatedData.map((row, index) => (
+                    <tr key={index} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-4 py-2.5 text-center text-xs text-slate-400 font-mono">
+                            {(currentPage - 1) * ROWS_PER_PAGE + index + 1}
+                        </td>
+                        {visibleColumns.map(col => (
+                            <td key={col.key} className="px-4 py-2.5 text-sm text-slate-700 whitespace-nowrap">
+                                {row[col.key]}
+                            </td>
+                        ))}
+                    </tr>
+                ))
             ) : (
-              <tr>
-                <td colSpan={visibleColumns.length + 1} className="p-8 text-center text-slate-500">
-                  Không tìm thấy dữ liệu phù hợp.
-                </td>
-              </tr>
+                <tr>
+                    <td colSpan={visibleColumns.length + 1} className="px-6 py-12 text-center text-slate-400">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                            <Search size={32} className="opacity-20" />
+                            <p>Không tìm thấy dữ liệu phù hợp.</p>
+                        </div>
+                    </td>
+                </tr>
             )}
           </tbody>
         </table>
       </div>
 
-      {/* --- Footer / Pagination --- */}
-      <div className="px-4 py-3 border-t border-wood-100 bg-slate-50 flex items-center justify-between text-xs font-medium text-slate-500">
-         <div>
-            Hiển thị {paginatedData.length} / {processedData.length} dòng
-         </div>
-         {totalPages > 1 && (
-             <div className="flex items-center gap-2">
+      {/* Footer / Pagination */}
+      <div className="p-4 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div className="text-xs text-slate-500">
+            Hiển thị <span className="font-bold text-slate-700">{processedData.length > 0 ? (currentPage - 1) * ROWS_PER_PAGE + 1 : 0}</span> đến <span className="font-bold text-slate-700">{Math.min(currentPage * ROWS_PER_PAGE, processedData.length)}</span> trong tổng số <span className="font-bold text-slate-700">{processedData.length}</span> dòng
+        </div>
+        
+        {totalPages > 1 && (
+            <div className="flex items-center gap-2">
                 <button 
-                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                  disabled={currentPage === 1}
-                  className="p-1.5 rounded border border-slate-200 hover:bg-white disabled:opacity-50"
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                    className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-slate-600"
                 >
-                  <ChevronLeft size={16} />
+                    <ChevronLeft size={16} />
                 </button>
-                <span>Trang {currentPage} / {totalPages}</span>
+                <div className="text-xs font-medium text-slate-700 bg-white border border-slate-200 px-3 py-2 rounded-lg">
+                    Trang {currentPage} / {totalPages}
+                </div>
                 <button 
-                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                  disabled={currentPage === totalPages}
-                  className="p-1.5 rounded border border-slate-200 hover:bg-white disabled:opacity-50"
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                    className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-slate-600"
                 >
-                  <ChevronRight size={16} />
+                    <ChevronRight size={16} />
                 </button>
-             </div>
-         )}
+            </div>
+        )}
       </div>
     </div>
   );

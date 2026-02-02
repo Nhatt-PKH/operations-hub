@@ -22,12 +22,14 @@ export const TARGET_COLUMN_NAMES = {
 
   THANH_TIEN_NHAP_KHO: 'THÀNH TIỀN NHẬP KHO LŨY KẾ', // Cột cũ của Production View
   INVENTORY_AMOUNT: 'THÀNH TIỀN NHẬP KHO', // Cột mới chính xác cho Inventory View
+  NHAP_KHO_TUAN: 'NHẬP KHO TUẦN', // Cột mới theo yêu cầu
 
   // Inventory Specific Date Columns
   NAM: 'NĂM',
   THANG: 'THÁNG',
   NGAY: 'NGÀY',
   DATE: 'DATE', // New Column for Inventory Overview
+  TUAN: 'TUẦN', // New Column for Weekly Analysis
 
   TEN_HANG_MUC: 'TÊN HẠNG MỤC',
 
@@ -74,7 +76,16 @@ export const TARGET_COLUMN_NAMES = {
   ACTUAL_DATE: 'NGÀY VỀ-KHO BÁO',
   ACTUAL_QTY: 'SL HÀNG VỀ THỰC TẾ-KHO BÁO',
   TEAM_PR_NOTE: 'TEAM PR NOTE',
-  REQUISITIONER: 'NGƯỜI YÊU CẦU'
+  REQUISITIONER: 'NGƯỜI YÊU CẦU',
+
+  // Weekly Analysis New Columns
+  DUNG_KE_HOACH: 'ĐÚNG KẾ HOẠCH',
+  THUC_HIEN_DUNG_KE_HOACH_1_PHAN: 'THỰC HIỆN ĐÚNG KẾ HOẠCH 1 PHẦN',
+  ROT_KE_HOACH: 'RỚT KẾ HOẠCH',
+  THUC_HIEN_ROT_KE_HOACH_1_PHAN: 'THỰC HIỆN RỚT KẾ HOẠCH 1 PHẦN',
+  NHAP_KHO_TRUOC_KE_HOACH: 'NHẬP KHO TRƯỚC KẾ HOẠCH',
+  VUOT_KE_HOACH: 'VƯỢT KẾ HOẠCH',
+  NHAP_KHO_NGOAI_KE_HOACH: 'NHẬP KHO NGOÀI KẾ HOẠCH'
 };
 
 export type DataRow = Record<string, any>;

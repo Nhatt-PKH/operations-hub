@@ -25,6 +25,8 @@ interface DashboardProps {
   pthspColumns: ColumnDefinition[];
   yearlyPlanData: DataRow[];
   yearlyPlanColumns: ColumnDefinition[];
+  analysisData: DataRow[];
+  analysisColumns: ColumnDefinition[];
   isSidebarCollapsed: boolean;
 }
 
@@ -126,6 +128,34 @@ const MATERIAL_LIST_COLUMNS = [
 ];
 
 // --- REUSABLE COMPONENTS ---
+
+const CompactStatCard = ({ 
+  title, 
+  value, 
+  icon, 
+  bg, 
+  borderColor, 
+  textColor, 
+  isParent = false 
+}: { 
+  title: string; 
+  value: string; 
+  icon: React.ReactNode; 
+  bg: string; 
+  borderColor: string; 
+  textColor: string; 
+  isParent?: boolean;
+}) => (
+  <div className={`${bg} rounded-lg p-3 border ${borderColor} flex flex-col justify-between h-full ${isParent ? 'shadow-sm' : ''}`}>
+    <div className="flex justify-between items-start mb-2">
+      <span className={`text-[10px] font-bold ${textColor} uppercase tracking-wider`}>{title}</span>
+      {icon}
+    </div>
+    <div className={`font-bold ${isParent ? 'text-xl' : 'text-lg'} ${textColor}`}>
+      {value}
+    </div>
+  </div>
+);
 
 const DashboardFilter = ({ 
   label, 
@@ -540,6 +570,15 @@ const getDateRangeDisplay = (filters: string[], options: string[]) => {
     return `(${fmt(minDate)} - ${fmt(maxDate)})`;
 };
 
+// Helper function to get week number (ISO 8601-like)
+function getWeekNumber(d: Date = new Date()): number {
+    d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
+    var yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+    var weekNo = Math.ceil(( ( (d.getTime() - yearStart.getTime()) / 86400000) + 1)/7);
+    return weekNo;
+}
+
 // ... (Dashboard Component) ...
 
 const Dashboard: React.FC<DashboardProps> = ({ 
@@ -552,13 +591,15 @@ const Dashboard: React.FC<DashboardProps> = ({
   inventoryData, 
   inventoryColumns,
   orderData, 
-  orderColumns,
+  orderColumns, 
   tkbvData, 
   tkbvColumns, 
   pthspData, 
-  pthspColumns,
+  pthspColumns, 
   yearlyPlanData, 
   yearlyPlanColumns,
+  analysisData,
+  analysisColumns,
   isSidebarCollapsed
 }) => {
   // ... (Same state and refs) ...
@@ -622,6 +663,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const khsxNamKey = findColumnKey(khsxColumns, TARGET_COLUMN_NAMES.NAM);
   const khsxThangKey = findColumnKey(khsxColumns, TARGET_COLUMN_NAMES.THANG);
   const khsxNgayKey = findColumnKey(khsxColumns, TARGET_COLUMN_NAMES.NGAY);
+  const khsxTuanKey = findColumnKey(khsxColumns, TARGET_COLUMN_NAMES.TUAN);
 
   const invThanhTienKey = findColumnKey(inventoryColumns, TARGET_COLUMN_NAMES.INVENTORY_AMOUNT);
   const invXuongKey = findColumnKey(inventoryColumns, TARGET_COLUMN_NAMES.XUONG);
@@ -632,6 +674,8 @@ const Dashboard: React.FC<DashboardProps> = ({
   const invNgayKey = findColumnKey(inventoryColumns, TARGET_COLUMN_NAMES.NGAY);
   const invDateKey = findColumnKey(inventoryColumns, TARGET_COLUMN_NAMES.DATE);
   const invHexKey = findColumnKey(inventoryColumns, TARGET_COLUMN_NAMES.HEX);
+  const nhapKhoTuanKey = findColumnKey(inventoryColumns, TARGET_COLUMN_NAMES.NHAP_KHO_TUAN);
+  const invTuanKey = findColumnKey(inventoryColumns, TARGET_COLUMN_NAMES.TUAN);
 
   const orderHexKey = findColumnKey(orderColumns, TARGET_COLUMN_NAMES.HEX);
   const orderDateKey = findColumnKey(orderColumns, TARGET_COLUMN_NAMES.NGAY_NHAN_TU_PM);
@@ -654,6 +698,23 @@ const Dashboard: React.FC<DashboardProps> = ({
   const yearlyPlanAmountKey = findColumnKey(yearlyPlanColumns, TARGET_COLUMN_NAMES.THANH_TIEN_KE_HOACH);
   const yearlyPlanYearKey = findColumnKey(yearlyPlanColumns, TARGET_COLUMN_NAMES.NAM);
   const yearlyPlanXuongKey = findColumnKey(yearlyPlanColumns, TARGET_COLUMN_NAMES.XUONG);
+
+  // New keys for Analysis Data
+  const analysisXuongKey = findColumnKey(analysisColumns, TARGET_COLUMN_NAMES.XUONG);
+  const analysisCongTrinhKey = findColumnKey(analysisColumns, TARGET_COLUMN_NAMES.CONG_TRINH);
+  const analysisPlanKey = findColumnKey(analysisColumns, TARGET_COLUMN_NAMES.THANH_TIEN_KE_HOACH);
+  const analysisActualKey = findColumnKey(analysisColumns, TARGET_COLUMN_NAMES.NHAP_KHO_TUAN);
+  const analysisWeekKey = findColumnKey(analysisColumns, TARGET_COLUMN_NAMES.TUAN);
+
+  // Additional Analysis Keys
+  const analysisDungKhKey = findColumnKey(analysisColumns, TARGET_COLUMN_NAMES.DUNG_KE_HOACH);
+  const analysisThucHienDungKh1PhanKey = findColumnKey(analysisColumns, TARGET_COLUMN_NAMES.THUC_HIEN_DUNG_KE_HOACH_1_PHAN);
+  const analysisRotKhKey = findColumnKey(analysisColumns, TARGET_COLUMN_NAMES.ROT_KE_HOACH);
+  const analysisThucHienRotKh1PhanKey = findColumnKey(analysisColumns, TARGET_COLUMN_NAMES.THUC_HIEN_ROT_KE_HOACH_1_PHAN);
+  const analysisNhapKhoTruocKhKey = findColumnKey(analysisColumns, TARGET_COLUMN_NAMES.NHAP_KHO_TRUOC_KE_HOACH);
+  const analysisVuotKhKey = findColumnKey(analysisColumns, TARGET_COLUMN_NAMES.VUOT_KE_HOACH);
+  const analysisNhapKhoNgoaiKhKey = findColumnKey(analysisColumns, TARGET_COLUMN_NAMES.NHAP_KHO_NGOAI_KE_HOACH);
+
 
   const [filters, setFilters] = useState<{
     congTrinh: string[];
@@ -689,6 +750,14 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [excludeFabrics, setExcludeFabrics] = useState(false);
   const [materialListPage, setMaterialListPage] = useState(1);
   const MATERIAL_ITEMS_PER_PAGE = 15;
+
+  const [weekFilter, setWeekFilter] = useState<string[]>([]);
+
+  // Default week filter to current week
+  useEffect(() => {
+    const currentWeek = getWeekNumber();
+    setWeekFilter([String(currentWeek)]);
+  }, []);
 
   // ... (useMemo options blocks) ...
 
@@ -846,6 +915,15 @@ const Dashboard: React.FC<DashboardProps> = ({
     });
   }, [inventoryData, overviewDateFilters, invDateKey]);
 
+  // Filter for Analysis Data (Applied global filters)
+  const filteredAnalysisData = useMemo(() => {
+    return analysisData.filter(row => {
+      const matchCongTrinh = filters.congTrinh.length === 0 || (analysisCongTrinhKey && filters.congTrinh.includes(String(row[analysisCongTrinhKey] || '').trim()));
+      const matchXuong = filters.xuong.length === 0 || (analysisXuongKey && filters.xuong.includes(String(row[analysisXuongKey] || '').trim()));
+      return matchCongTrinh && matchXuong;
+    });
+  }, [analysisData, filters.congTrinh, filters.xuong, analysisCongTrinhKey, analysisXuongKey]);
+
   const bottleneckData = useMemo<BottleneckItem[]>(() => {
     if (!tinhTrangKey || !daysAtCurrentStageKey) return [];
     
@@ -877,7 +955,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     return Object.values(agg).sort((a, b) => a.name.localeCompare(b.name));
   }, [filteredProductionData, tinhTrangKey, daysAtCurrentStageKey]);
 
-  const topBottlenecks = useMemo<any[]>(() => {
+  const topBottlenecks = useMemo<{ name: string; count: number }[]>(() => {
      if (!tinhTrangKey || !daysAtCurrentStageKey) return [];
      
      const counts: Record<string, number> = {};
@@ -892,7 +970,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
      return Object.entries(counts)
         .map(([name, count]) => ({ name, count }))
-        .sort((a: any, b: any) => b.count - a.count)
+        .sort((a, b) => b.count - a.count)
         .slice(0, 5); 
   }, [filteredProductionData, tinhTrangKey, daysAtCurrentStageKey]);
 
@@ -1262,6 +1340,96 @@ const Dashboard: React.FC<DashboardProps> = ({
       });
       return Array.from(map.values()).sort((a, b) => Math.max(b.khValue, b.thValue) - Math.max(a.khValue, a.thValue)).slice(0, 10);
   }, [khsxProjectChartData, inventoryProjectChartData]);
+
+  // Weekly Analysis specific
+
+  // Update Week Options to use Analysis Data Source
+  const weekOptions = useMemo(() => {
+       const weeks = new Set<string>();
+       filteredAnalysisData.forEach(r => {
+           if(analysisWeekKey) {
+             const val = String(r[analysisWeekKey] || '').trim();
+             if(val) weeks.add(val);
+           }
+       });
+       return Array.from(weeks).sort((a,b) => {
+           const na = parseInt(a);
+           const nb = parseInt(b);
+           if(!isNaN(na) && !isNaN(nb)) return na - nb;
+           return a.localeCompare(b);
+       });
+  }, [filteredAnalysisData, analysisWeekKey]);
+
+  // New logic for Weekly Plan vs Actual Data using Analysis Data Source
+  const weeklyPlanVsActualData = useMemo(() => {
+      if (!analysisXuongKey || !analysisPlanKey || !analysisActualKey) return [];
+
+      const map = new Map<string, { 
+          name: string, 
+          plan: number, 
+          actualWeek: number,
+          dungKh: number,
+          thucHienDungKh1Phan: number,
+          rotKh: number,
+          thucHienRotKh1Phan: number,
+          nhapKhoTruocKh: number,
+          vuotKh: number,
+          nhapKhoNgoaiKh: number
+      }>();
+
+      filteredAnalysisData.forEach(row => {
+          if (weekFilter.length > 0 && analysisWeekKey) {
+            const rowWeek = String(row[analysisWeekKey] || '').trim();
+            if (!weekFilter.includes(rowWeek)) return;
+          }
+          const xuong = String(row[analysisXuongKey] || 'Chưa phân xưởng').trim();
+          
+          const plan = parseNumber(row[analysisPlanKey]) / 1000;
+          const actual = parseNumber(row[analysisActualKey]) / 1000;
+
+          // Parse new columns
+          const dungKh = analysisDungKhKey ? parseNumber(row[analysisDungKhKey]) / 1000 : 0;
+          const thucHienDungKh1Phan = analysisThucHienDungKh1PhanKey ? parseNumber(row[analysisThucHienDungKh1PhanKey]) / 1000 : 0;
+          const rotKh = analysisRotKhKey ? parseNumber(row[analysisRotKhKey]) / 1000 : 0;
+          const thucHienRotKh1Phan = analysisThucHienRotKh1PhanKey ? parseNumber(row[analysisThucHienRotKh1PhanKey]) / 1000 : 0;
+          const nhapKhoTruocKh = analysisNhapKhoTruocKhKey ? parseNumber(row[analysisNhapKhoTruocKhKey]) / 1000 : 0;
+          const vuotKh = analysisVuotKhKey ? parseNumber(row[analysisVuotKhKey]) / 1000 : 0;
+          const nhapKhoNgoaiKh = analysisNhapKhoNgoaiKhKey ? parseNumber(row[analysisNhapKhoNgoaiKhKey]) / 1000 : 0;
+
+
+          if (!map.has(xuong)) {
+              map.set(xuong, { 
+                  name: xuong, 
+                  plan: 0, 
+                  actualWeek: 0,
+                  dungKh: 0,
+                  thucHienDungKh1Phan: 0,
+                  rotKh: 0,
+                  thucHienRotKh1Phan: 0,
+                  nhapKhoTruocKh: 0,
+                  vuotKh: 0,
+                  nhapKhoNgoaiKh: 0
+              });
+          }
+          const entry = map.get(xuong)!;
+          entry.plan += plan;
+          entry.actualWeek += actual;
+          
+          entry.dungKh += dungKh;
+          entry.thucHienDungKh1Phan += thucHienDungKh1Phan;
+          entry.rotKh += rotKh;
+          entry.thucHienRotKh1Phan += thucHienRotKh1Phan;
+          entry.nhapKhoTruocKh += nhapKhoTruocKh;
+          entry.vuotKh += vuotKh;
+          entry.nhapKhoNgoaiKh += nhapKhoNgoaiKh;
+      });
+
+      return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [
+      filteredAnalysisData, analysisXuongKey, analysisPlanKey, analysisActualKey, analysisWeekKey, weekFilter,
+      analysisDungKhKey, analysisThucHienDungKh1PhanKey, analysisRotKhKey, analysisThucHienRotKh1PhanKey,
+      analysisNhapKhoTruocKhKey, analysisVuotKhKey, analysisNhapKhoNgoaiKhKey
+  ]);
 
   const completionRate = useMemo(() => totalKhsxAmount > 0 ? (totalInventoryAmount / totalKhsxAmount) * 100 : 0, [totalInventoryAmount, totalKhsxAmount]);
 
@@ -1848,7 +2016,7 @@ const YearlyPlanWorkshopTooltip = ({ active, payload, label }: any) => {
                                                 position="top" 
                                                 content={(props: any) => {
                                                     const { x, y, width, value, index } = props;
-                                                    const item = yearlyPlan2026WorkshopChartData[index];
+                                                    const item = yearlyPlan2026WorkshopChartData[index as number];
                                                     const plan = item?.plan || 0;
                                                     const actual = Number(value) || 0;
                                                     
@@ -2113,19 +2281,21 @@ const YearlyPlanWorkshopTooltip = ({ active, payload, label }: any) => {
                       <thead className="bg-wood-50 text-slate-700 font-semibold uppercase">
                         <tr>
                           <th className="px-3 py-2 text-left sticky left-0 bg-wood-50 border-b border-wood-200 z-10 min-w-[180px]">Tình Trạng / Xưởng</th>
-                          {(pivotWorkshopData.uniqueWorkshops as any[]).map((w: any) => (<th key={w} className="px-3 py-2 border-b border-wood-200 whitespace-nowrap text-wood-800">{w}</th>))}
+                          {pivotWorkshopData.uniqueWorkshops.map((w: string) => (<th key={w} className="px-3 py-2 border-b border-wood-200 whitespace-nowrap text-wood-800">{w}</th>))}
                           <th className="px-3 py-2 bg-wood-100 border-b border-wood-200 font-bold text-slate-800">Tổng Cộng</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {(pivotWorkshopData.uniqueStatuses as any[]).map((s: any) => (
+                        {pivotWorkshopData.uniqueStatuses.map((s: string) => (
                           <tr key={s} className="hover:bg-slate-50 transition-colors">
                             <td className="px-3 py-2 text-left font-medium text-slate-700 sticky left-0 bg-white hover:bg-slate-50 z-10 whitespace-nowrap border-r border-slate-100">{s}</td>
-                            {(pivotWorkshopData.uniqueWorkshops as any[]).map((w: any) => { 
-                                const val = pivotWorkshopData!.matrix[String(s)]?.[String(w)] || 0; 
+                            {pivotWorkshopData.uniqueWorkshops.map((w: string) => { 
+                                // Safe access using local reference to matrix
+                                const matrix = pivotWorkshopData?.matrix || {};
+                                const val = matrix?.[s]?.[w] || 0; 
                                 return (<td key={w} className={`px-3 py-2 whitespace-nowrap ${val === 0 ? 'text-slate-300' : 'text-slate-600'}`}>{val === 0 ? '-' : formatNumber(val, workshopMetric)}</td>); 
                             })}
-                            <td className="px-3 py-2 font-bold text-slate-800 bg-wood-50/50">{formatNumber(pivotWorkshopData.rowTotals[String(s)], workshopMetric)}</td>
+                            <td className="px-3 py-2 font-bold text-slate-800 bg-wood-50/50">{formatNumber(pivotWorkshopData.rowTotals[s], workshopMetric)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -2191,19 +2361,19 @@ const YearlyPlanWorkshopTooltip = ({ active, payload, label }: any) => {
                     />
                     
                     <Bar dataKey="Từ 4 tuần trở lên" stackId="a" fill="#ef4444" barSize={30}>
-                        <LabelList dataKey="Từ 4 tuần trở lên" position="center" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(v: number) => v > 0 ? v : ''} />
+                        <LabelList dataKey="Từ 4 tuần trở lên" position="center" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(v: any) => v > 0 ? v : ''} />
                     </Bar>
                     <Bar dataKey="3 tuần" stackId="a" fill="#f97316" barSize={30}>
-                        <LabelList dataKey="3 tuần" position="center" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(v: number) => v > 0 ? v : ''} />
+                        <LabelList dataKey="3 tuần" position="center" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(v: any) => v > 0 ? v : ''} />
                     </Bar>
                     <Bar dataKey="2 tuần" stackId="a" fill="#eab308" barSize={30}>
-                        <LabelList dataKey="2 tuần" position="center" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(v: number) => v > 0 ? v : ''} />
+                        <LabelList dataKey="2 tuần" position="center" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(v: any) => v > 0 ? v : ''} />
                     </Bar>
                     <Bar dataKey="4-7 NGÀY" stackId="a" fill="#3b82f6" barSize={30}>
-                        <LabelList dataKey="4-7 NGÀY" position="center" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(v: number) => v > 0 ? v : ''} />
+                        <LabelList dataKey="4-7 NGÀY" position="center" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(v: any) => v > 0 ? v : ''} />
                     </Bar>
                     <Bar dataKey="<3 NGÀY" stackId="a" fill="#22c55e" barSize={30}>
-                        <LabelList dataKey="<3 NGÀY" position="center" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(v: number) => v > 0 ? v : ''} />
+                        <LabelList dataKey="<3 NGÀY" position="center" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(v: any) => v > 0 ? v : ''} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -2243,7 +2413,7 @@ const YearlyPlanWorkshopTooltip = ({ active, payload, label }: any) => {
                 <div className="mt-4 pt-4 border-t border-red-200">
                     <div className="flex justify-between items-center text-xs">
                         <span className="text-slate-500">Tổng cảnh báo:</span>
-                        <span className="font-bold text-red-700">{(topBottlenecks as any[]).reduce((a,b) => a + b.count, 0)} items</span>
+                        <span className="font-bold text-red-700">{topBottlenecks.reduce((a,b) => a + b.count, 0)} items</span>
                     </div>
                 </div>
               </div>
@@ -2363,7 +2533,7 @@ const YearlyPlanWorkshopTooltip = ({ active, payload, label }: any) => {
                                     content={(props: any) => {
                                         const { x, y, width, value, index } = props;
                                         // Use index to find the corresponding plan value from data
-                                        const item = combinedWorkshopData[index];
+                                        const item = combinedWorkshopData[index as number];
                                         const plan = item?.khValue || 0;
                                         const actual = Number(value) || 0;
 
@@ -2392,15 +2562,15 @@ const YearlyPlanWorkshopTooltip = ({ active, payload, label }: any) => {
                             <YAxis tickFormatter={formatDecimal} tick={{fontSize: 10}} width={45} domain={['auto', 'auto']} />
                             <RechartsTooltip content={<ProjectChartTooltip />} cursor={{fill: '#f8fafc'}}/>
                             <Legend verticalAlign="top" height={36} iconType="circle" />
-                            <Bar dataKey="khValue" name="Kế hoạch (KH)" fill="#10b981" radius={[4, 4, 0, 0]} barSize={15}><LabelList position="top" formatter={formatDecimal} fontSize={9} fill="#059669" /></Bar>
-                            <Bar dataKey="thValue" name="Thực hiện (TH)" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={15}>
+                            <Bar dataKey="khValue" name="Kế hoạch (KH)" fill="#10b981" radius={[4, 4, 0, 0]} barSize={20}><LabelList position="top" formatter={formatDecimal} fontSize={10} fill="#059669" /></Bar>
+                            <Bar dataKey="thValue" name="Thực hiện (TH)" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={20}>
                                 <LabelList 
                                     dataKey="thValue" 
                                     position="top" 
                                     content={(props: any) => {
                                         const { x, y, width, value, index } = props;
                                         // Use index to find the corresponding plan value from data
-                                        const item = combinedProjectData[index];
+                                        const item = combinedProjectData[index as number];
                                         const plan = item?.khValue || 0;
                                         const actual = Number(value) || 0;
 
@@ -2409,7 +2579,7 @@ const YearlyPlanWorkshopTooltip = ({ active, payload, label }: any) => {
                                         const percent = plan > 0 ? (actual / plan) * 100 : 0;
 
                                         return (
-                                            <text x={x + width / 2} y={y - 15} fill="#2563eb" fontSize={9} textAnchor="middle">
+                                            <text x={x + width / 2} y={y - 15} fill="#2563eb" fontSize={10} textAnchor="middle">
                                                 <tspan x={x + width / 2} dy="0">{formatDecimal(actual)}</tspan>
                                                 <tspan x={x + width / 2} dy="12">({Math.round(percent)}%)</tspan>
                                             </text>
@@ -2420,6 +2590,91 @@ const YearlyPlanWorkshopTooltip = ({ active, payload, label }: any) => {
                           </BarChart>
                         </ResponsiveContainer>
                     </div>
+                </div>
+
+                <div className="w-full mt-4">
+                     <div className="flex justify-between items-center mb-4">
+                         <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2 uppercase tracking-wide">
+                            <TableIcon className="w-4 h-4 text-orange-600"/> Phân tích Kế hoạch-Thực hiện Tuần
+                        </h4>
+                        <DashboardFilter 
+                            label="Lọc Tuần" 
+                            options={weekOptions} 
+                            selectedValues={weekFilter} 
+                            onChange={(vals) => setWeekFilter(vals)} 
+                        />
+                     </div>
+                    {weeklyPlanVsActualData.length > 0 ? (
+                        <div className="overflow-x-auto custom-scrollbar border border-slate-200 rounded-lg">
+                            <table className="w-full text-xs text-right min-w-[1500px]">
+                                <thead className="bg-orange-50 text-slate-700 font-semibold uppercase">
+                                    <tr>
+                                        <th className="px-4 py-3 text-left sticky left-0 bg-orange-50 border-b border-orange-200 z-10 w-32">Xưởng Chính</th>
+                                        <th className="px-4 py-3 border-b border-orange-200 text-orange-900">Thành tiền Kế hoạch</th>
+                                        <th className="px-4 py-3 border-b border-orange-200 text-orange-900">Nhập kho Tuần</th>
+                                        <th className="px-4 py-3 border-b border-orange-200 text-orange-900">Tỷ lệ (Tuần/KH)</th>
+                                        
+                                        <th className="px-4 py-3 border-b border-orange-200 text-green-700 bg-green-50">ĐÚNG KẾ HOẠCH</th>
+                                        <th className="px-4 py-3 border-b border-orange-200 text-blue-700 bg-blue-50">THỰC HIỆN ĐÚNG KH 1 PHẦN</th>
+                                        <th className="px-4 py-3 border-b border-orange-200 text-red-700 bg-red-50">RỚT KẾ HOẠCH</th>
+                                        <th className="px-4 py-3 border-b border-orange-200 text-orange-700 bg-orange-50">THỰC HIỆN RỚT KH 1 PHẦN</th>
+                                        <th className="px-4 py-3 border-b border-orange-200 text-purple-700 bg-purple-50">NHẬP KHO TRƯỚC KH</th>
+                                        <th className="px-4 py-3 border-b border-orange-200 text-teal-700 bg-teal-50">VƯỢT KẾ HOẠCH</th>
+                                        <th className="px-4 py-3 border-b border-orange-200 text-gray-700 bg-gray-100">NHẬP KHO NGOÀI KH</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {weeklyPlanVsActualData.map((item, idx) => {
+                                        const percent = item.plan > 0 ? (item.actualWeek / item.plan) * 100 : 0;
+                                        return (
+                                            <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                                <td className="px-4 py-3 text-left font-medium text-slate-700 sticky left-0 bg-white hover:bg-slate-50 z-10 border-r border-slate-100">{item.name}</td>
+                                                <td className="px-4 py-3 text-slate-600 font-bold">{formatDecimal(item.plan)}</td>
+                                                <td className="px-4 py-3 font-bold text-slate-800">{formatDecimal(item.actualWeek)}</td>
+                                                <td className="px-4 py-3">
+                                                    <span className={`px-2 py-1 rounded font-bold text-[10px] inline-block w-16 text-center ${percent >= 80 ? 'bg-green-100 text-green-700' : percent >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                                                        {formatDecimal(percent)}%
+                                                    </span>
+                                                </td>
+                                                
+                                                <td className="px-4 py-3 text-green-700 bg-green-50/30">{formatDecimal(item.dungKh)}</td>
+                                                <td className="px-4 py-3 text-blue-700 bg-blue-50/30">{formatDecimal(item.thucHienDungKh1Phan)}</td>
+                                                <td className="px-4 py-3 text-red-700 bg-red-50/30">{formatDecimal(item.rotKh)}</td>
+                                                <td className="px-4 py-3 text-orange-700 bg-orange-50/30">{formatDecimal(item.thucHienRotKh1Phan)}</td>
+                                                <td className="px-4 py-3 text-purple-700 bg-purple-50/30">{formatDecimal(item.nhapKhoTruocKh)}</td>
+                                                <td className="px-4 py-3 text-teal-700 bg-teal-50/30">{formatDecimal(item.vuotKh)}</td>
+                                                <td className="px-4 py-3 text-gray-700 bg-gray-50/30">{formatDecimal(item.nhapKhoNgoaiKh)}</td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                                <tfoot className="bg-orange-100 font-bold text-slate-800 border-t border-orange-300">
+                                    <tr>
+                                        <td className="px-4 py-3 text-left sticky left-0 bg-orange-100 z-10">TỔNG CỘNG</td>
+                                        <td className="px-4 py-3">{formatDecimal(weeklyPlanVsActualData.reduce((a, b) => a + b.plan, 0))}</td>
+                                        <td className="px-4 py-3">{formatDecimal(weeklyPlanVsActualData.reduce((a, b) => a + b.actualWeek, 0))}</td>
+                                        <td className="px-4 py-3">
+                                            {(() => {
+                                                const totalPlan = weeklyPlanVsActualData.reduce((a, b) => a + b.plan, 0);
+                                                const totalActual = weeklyPlanVsActualData.reduce((a, b) => a + b.actualWeek, 0);
+                                                const totalPercent = totalPlan > 0 ? (totalActual / totalPlan) * 100 : 0;
+                                                return `${formatDecimal(totalPercent)}%`;
+                                            })()}
+                                        </td>
+                                        <td className="px-4 py-3 text-green-800 bg-green-100/50">{formatDecimal(weeklyPlanVsActualData.reduce((a, b) => a + b.dungKh, 0))}</td>
+                                        <td className="px-4 py-3 text-blue-800 bg-blue-100/50">{formatDecimal(weeklyPlanVsActualData.reduce((a, b) => a + b.thucHienDungKh1Phan, 0))}</td>
+                                        <td className="px-4 py-3 text-red-800 bg-red-100/50">{formatDecimal(weeklyPlanVsActualData.reduce((a, b) => a + b.rotKh, 0))}</td>
+                                        <td className="px-4 py-3 text-orange-800 bg-orange-100/50">{formatDecimal(weeklyPlanVsActualData.reduce((a, b) => a + b.thucHienRotKh1Phan, 0))}</td>
+                                        <td className="px-4 py-3 text-purple-800 bg-purple-100/50">{formatDecimal(weeklyPlanVsActualData.reduce((a, b) => a + b.nhapKhoTruocKh, 0))}</td>
+                                        <td className="px-4 py-3 text-teal-800 bg-teal-100/50">{formatDecimal(weeklyPlanVsActualData.reduce((a, b) => a + b.vuotKh, 0))}</td>
+                                        <td className="px-4 py-3 text-gray-800 bg-gray-200/50">{formatDecimal(weeklyPlanVsActualData.reduce((a, b) => a + b.nhapKhoNgoaiKh, 0))}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    ) : (
+                        <div className="p-8 text-center text-slate-500 bg-slate-50 rounded-lg">Không có dữ liệu phân tích tuần (Kiểm tra lại bộ lọc hoặc dữ liệu nguồn).</div>
+                    )}
                 </div>
             </div>
         )}
@@ -2506,19 +2761,21 @@ const YearlyPlanWorkshopTooltip = ({ active, payload, label }: any) => {
                   <thead className="bg-blue-50/50 text-slate-700 font-semibold uppercase">
                     <tr>
                       <th className="px-3 py-2 text-left sticky left-0 top-0 bg-blue-100 border-b border-blue-200 z-30 min-w-[200px] shadow-[1px_1px_2px_rgba(0,0,0,0.05)]">Tên Công Trình</th>
-                      {(pivotProjectData.uniqueStatuses as any[]).map((s: any) => (<th key={s} className="px-3 py-2 border-b border-blue-200 whitespace-nowrap text-blue-900 sticky top-0 bg-blue-50 z-20">{s}</th>))}
+                      {(pivotProjectData.uniqueStatuses).map((s: string) => (<th key={s} className="px-3 py-2 border-b border-blue-200 whitespace-nowrap text-blue-900 sticky top-0 bg-blue-50 z-20">{s}</th>))}
                       <th className="px-3 py-2 bg-blue-100 border-b border-blue-200 font-bold text-slate-800 sticky top-0 right-0 z-20">Tổng Cộng</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {(pivotProjectData.uniqueProjects as any[]).map((p: any) => (
+                    {(pivotProjectData.uniqueProjects).map((p: string) => (
                       <tr key={p} className="hover:bg-slate-50 transition-colors group">
                         <td className="px-3 py-2 text-left font-medium text-slate-700 sticky left-0 bg-white group-hover:bg-slate-50 z-10 whitespace-nowrap border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{p}</td>
-                        {(pivotProjectData.uniqueStatuses as any[]).map((s: any) => { 
-                            const val = pivotProjectData!.matrix[String(p)]?.[String(s)] || 0; 
+                        {(pivotProjectData.uniqueStatuses).map((s: string) => { 
+                            // Safe access using local reference to matrix
+                            const matrix = pivotProjectData.matrix || {};
+                            const val = matrix[p]?.[s] || 0; 
                             return (<td key={s} className={`px-3 py-2 whitespace-nowrap ${val === 0 ? 'text-slate-300' : 'text-slate-600'}`}>{val === 0 ? '-' : formatNumber(val, projectMetric)}</td>); 
                         })}
-                        <td className="px-3 py-2 font-bold text-slate-800 bg-blue-50/30">{formatNumber(pivotProjectData.rowTotals[String(p)], projectMetric)}</td>
+                        <td className="px-3 py-2 font-bold text-slate-800 bg-blue-50/30">{formatNumber(pivotProjectData.rowTotals[p], projectMetric)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -2591,19 +2848,21 @@ const YearlyPlanWorkshopTooltip = ({ active, payload, label }: any) => {
                         <thead className="bg-emerald-50 text-slate-700 font-semibold uppercase">
                             <tr>
                                 <th className="px-3 py-2 text-left sticky left-0 top-0 bg-emerald-100 border-b border-emerald-200 z-30 min-w-[200px] shadow-[1px_1px_2px_rgba(0,0,0,0.05)]">Nhóm Vật Tư</th>
-                                {(pivotMaterialStatusData.uniqueStatuses as any[]).map((s: any) => (<th key={s} className="px-3 py-2 border-b border-emerald-200 whitespace-nowrap text-emerald-900 sticky top-0 bg-emerald-50 z-20">{s}</th>))}
+                                {(pivotMaterialStatusData.uniqueStatuses).map((s: string) => (<th key={s} className="px-3 py-2 border-b border-emerald-200 whitespace-nowrap text-emerald-900 sticky top-0 bg-emerald-50 z-20">{s}</th>))}
                                 <th className="px-3 py-2 bg-emerald-100 border-b border-emerald-200 font-bold text-slate-800 sticky top-0 right-0 z-20">Tổng Cộng</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {(pivotMaterialStatusData.sortedGroups as any[]).map((group: any) => (
+                            {(pivotMaterialStatusData.sortedGroups).map((group: string) => (
                                 <tr key={group} className="hover:bg-slate-50 transition-colors group">
                                     <td className="px-3 py-2 text-left font-medium text-slate-700 sticky left-0 bg-white group-hover:bg-slate-50 z-10 whitespace-nowrap border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{group}</td>
-                                    {(pivotMaterialStatusData.uniqueStatuses as any[]).map((s: any) => { 
-                                        const val = pivotMaterialStatusData!.matrix[String(group)]?.[String(s)] || 0; 
+                                    {(pivotMaterialStatusData.uniqueStatuses).map((s: string) => { 
+                                        // Safe access using local reference to matrix
+                                        const matrix = pivotMaterialStatusData.matrix || {};
+                                        const val = matrix[group]?.[s] || 0; 
                                         return (<td key={s} className={`px-3 py-2 whitespace-nowrap ${val === 0 ? 'text-slate-300' : 'text-slate-600'}`}>{val === 0 ? '-' : (matStatusMetric === 'SUM_QTY' ? formatDecimal(val) : formatNumber(val))}</td>); 
                                     })}
-                                    <td className="px-3 py-2 font-bold text-slate-800 bg-emerald-50/30">{matStatusMetric === 'SUM_QTY' ? formatDecimal(pivotMaterialStatusData.rowTotals[String(group)]) : formatNumber(pivotMaterialStatusData.rowTotals[String(group)])}</td>
+                                    <td className="px-3 py-2 font-bold text-slate-800 bg-emerald-50/30">{matStatusMetric === 'SUM_QTY' ? formatDecimal(pivotMaterialStatusData.rowTotals[group]) : formatNumber(pivotMaterialStatusData.rowTotals[group])}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -2747,10 +3006,9 @@ const YearlyPlanWorkshopTooltip = ({ active, payload, label }: any) => {
                       icon={Layers}
                       dateLabel={`NGÀY ${latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''}`}
                       mtdLabel={`LŨY KẾ THÁNG ${latestUnifiedDate ? `${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''}`}
-                      unitLabel={overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                      unitLabel={overviewMetric === 'COUNT' ? '(SL Bản vẽ)' : '(Giá trị VND)'}
                       primaryColorClass="text-blue-600"
                       secondaryColorClass="text-indigo-600"
-                      defaultExcludedKeys={['ABC', 'OTHERS', 'X.ĐB']}
                   />
 
                   <div className="border-t border-slate-200 pt-6">
@@ -2760,7 +3018,7 @@ const YearlyPlanWorkshopTooltip = ({ active, payload, label }: any) => {
                           icon={Building2}
                           dateLabel={`NGÀY ${latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''}`}
                           mtdLabel={`LŨY KẾ THÁNG ${latestUnifiedDate ? `${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''}`}
-                          unitLabel={overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                          unitLabel={overviewMetric === 'COUNT' ? '(SL Bản vẽ)' : '(Giá trị VND)'}
                           primaryColorClass="text-blue-600"
                           secondaryColorClass="text-indigo-600"
                       />
@@ -2794,10 +3052,9 @@ const YearlyPlanWorkshopTooltip = ({ active, payload, label }: any) => {
                       icon={Layers}
                       dateLabel={`NGÀY ${latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''}`}
                       mtdLabel={`LŨY KẾ THÁNG ${latestUnifiedDate ? `${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''}`}
-                      unitLabel={overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                      unitLabel={overviewMetric === 'COUNT' ? '(SL Phiếu)' : '(Giá trị VND)'}
                       primaryColorClass="text-purple-600"
-                      secondaryColorClass="text-indigo-600"
-                      defaultExcludedKeys={['ABC', 'OTHERS', 'X.ĐB']}
+                      secondaryColorClass="text-fuchsia-600"
                   />
 
                   <div className="border-t border-slate-200 pt-6">
@@ -2807,9 +3064,9 @@ const YearlyPlanWorkshopTooltip = ({ active, payload, label }: any) => {
                           icon={Building2}
                           dateLabel={`NGÀY ${latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''}`}
                           mtdLabel={`LŨY KẾ THÁNG ${latestUnifiedDate ? `${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''}`}
-                          unitLabel={overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                          unitLabel={overviewMetric === 'COUNT' ? '(SL Phiếu)' : '(Giá trị VND)'}
                           primaryColorClass="text-purple-600"
-                          secondaryColorClass="text-indigo-600"
+                          secondaryColorClass="text-fuchsia-600"
                       />
                   </div>
                </div>
@@ -2825,9 +3082,9 @@ const YearlyPlanWorkshopTooltip = ({ active, payload, label }: any) => {
                   <div>
                       <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                         <Package className="text-teal-600" size={20} />
-                        Chi tiết Nhập kho (Inventory)
+                        Chi tiết Nhập Kho
                       </h3>
-                      <p className="text-xs text-slate-500 mt-1">Dữ liệu được tổng hợp từ nguồn Nhập kho</p>
+                      <p className="text-xs text-slate-500 mt-1">Dữ liệu được tổng hợp từ nguồn Nhập Kho</p>
                   </div>
                   <button onClick={() => setIsInventoryDetailModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full transition-colors">
                      <X size={24} />
@@ -2841,10 +3098,9 @@ const YearlyPlanWorkshopTooltip = ({ active, payload, label }: any) => {
                       icon={Layers}
                       dateLabel={`NGÀY ${latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''}`}
                       mtdLabel={`LŨY KẾ THÁNG ${latestUnifiedDate ? `${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''}`}
-                      unitLabel={overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                      unitLabel={overviewMetric === 'COUNT' ? '(SL Items)' : '(Giá trị VND)'}
                       primaryColorClass="text-teal-600"
-                      secondaryColorClass="text-indigo-600"
-                      defaultExcludedKeys={['ABC', 'OTHERS', 'X.ĐB']}
+                      secondaryColorClass="text-emerald-600"
                   />
 
                   <div className="border-t border-slate-200 pt-6">
@@ -2854,9 +3110,9 @@ const YearlyPlanWorkshopTooltip = ({ active, payload, label }: any) => {
                           icon={Building2}
                           dateLabel={`NGÀY ${latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''}`}
                           mtdLabel={`LŨY KẾ THÁNG ${latestUnifiedDate ? `${latestUnifiedDate.getMonth()+1}/${latestUnifiedDate.getFullYear()}` : ''}`}
-                          unitLabel={overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                          unitLabel={overviewMetric === 'COUNT' ? '(SL Items)' : '(Giá trị VND)'}
                           primaryColorClass="text-teal-600"
-                          secondaryColorClass="text-indigo-600"
+                          secondaryColorClass="text-emerald-600"
                       />
                   </div>
                </div>
@@ -2867,15 +3123,5 @@ const YearlyPlanWorkshopTooltip = ({ active, payload, label }: any) => {
     </div>
   );
 };
-
-const CompactStatCard = ({ title, value, icon, bg, borderColor, textColor, isParent = false }: { title: string, value: string | number, icon: React.ReactNode, bg: string, borderColor: string, textColor: string, isParent?: boolean }) => (
-  <div className={`${isParent ? 'p-2 border-l-4 min-h-[60px]' : 'p-1.5 border-l-2 min-h-[45px]'} ${bg} ${borderColor} rounded-lg shadow-sm flex items-start justify-between hover:shadow-md transition-all`}>
-    <div className="flex-1 mr-2 overflow-hidden">
-      <p className={`${isParent ? 'text-xs' : 'text-[10px]'} font-bold uppercase tracking-wide text-slate-500 mb-0.5 truncate`}>{title}</p>
-      <h4 className={`${isParent ? 'text-3xl' : 'text-2xl'} font-bold ${textColor} break-all`}>{value}</h4>
-    </div>
-    <div className={`${isParent ? 'p-1.5' : 'p-1'} bg-white/60 rounded-lg shadow-sm shrink-0`}>{icon}</div>
-  </div>
-);
 
 export default Dashboard;
