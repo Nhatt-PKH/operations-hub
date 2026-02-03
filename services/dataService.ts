@@ -15,6 +15,7 @@ const TKBV_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR7PQK0D
 const PTHSP_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRx1qNl2CLetbdTIQqf0IKgcpmnCIWp68Tl4k0I0DBUqubdmtTabPznXaWjg5zFTtwJout4thJleu9g/pub?output=csv';
 const ANALYSIS_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSLj0AFJBo0UbfWuMsdw3761yTTSioN9Zt0Hrwoe2PZisZ6KtLRfCER9FTuuxGY8HJmv-tPDJdQsrYV/pub?output=csv';
 const YEARLY_PLAN_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTzOpOduvkY8V2GXeCUjr0LpLS25wJl6K2NsMgNZi_NTNYejaejy_EnlDoVunqMjU68jfNWNE7s5stR/pub?output=csv';
+const EXPORT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQP14PKN3mbwVnRK8y3QcerrlXLuHNLeKZrshnXZQZWiR8eXkdkZOEJjzgDrS5-KD6k5vnGiFojxLSx/pub?output=csv';
 
 const fetchFromUrl = async (url: string): Promise<{ data: DataRow[]; columns: ColumnDefinition[] }> => {
   try {
@@ -30,7 +31,7 @@ const fetchFromUrl = async (url: string): Promise<{ data: DataRow[]; columns: Co
         skipEmptyLines: true,
         complete: (results) => {
           const rawData = results.data as DataRow[];
-          
+
           if (rawData.length === 0) {
             resolve({ data: [], columns: [] });
             return;
@@ -39,7 +40,7 @@ const fetchFromUrl = async (url: string): Promise<{ data: DataRow[]; columns: Co
           // Dynamic column generation based on first row keys
           // Filter out empty keys (unnamed columns)
           const headers = Object.keys(rawData[0]).filter(k => k && k.trim() !== '');
-          
+
           const columns: ColumnDefinition[] = headers.map(header => ({
             key: header,
             label: header,
@@ -58,7 +59,7 @@ const fetchFromUrl = async (url: string): Promise<{ data: DataRow[]; columns: Co
   } catch (error) {
     console.error("Error fetching sheet:", error);
     // Don't throw, just return empty so app doesn't crash completely
-    return { data: [], columns: [] }; 
+    return { data: [], columns: [] };
   }
 };
 
@@ -71,30 +72,31 @@ export const fetchTkbvData = () => fetchFromUrl(TKBV_SHEET_URL);
 export const fetchPthspData = () => fetchFromUrl(PTHSP_SHEET_URL);
 export const fetchAnalysisData = () => fetchFromUrl(ANALYSIS_SHEET_URL);
 export const fetchYearlyPlanData = () => fetchFromUrl(YEARLY_PLAN_SHEET_URL);
+export const fetchExportData = () => fetchFromUrl(EXPORT_SHEET_URL);
 
 const detectColumnType = (header: string, data: DataRow[]): 'string' | 'number' | 'date' => {
   // Heuristic 1: Check header name
   const lowerHeader = header.toLowerCase();
   if (COMMON_DATE_HEADERS.some(h => lowerHeader.includes(h))) return 'date';
-  
+
   // Heuristic 2: Check content of first few non-null rows
   for (let i = 0; i < Math.min(data.length, 5); i++) {
     const value = data[i][header];
     if (value && typeof value === 'string') {
-        // Simple date regex check (DD/MM/YYYY or YYYY-MM-DD)
-        if (/^\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}$/.test(value)) return 'date';
-        // Number check
-        if (!isNaN(Number(value)) && value.trim() !== '') return 'number';
+      // Simple date regex check (DD/MM/YYYY or YYYY-MM-DD)
+      if (/^\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}$/.test(value)) return 'date';
+      // Number check
+      if (!isNaN(Number(value)) && value.trim() !== '') return 'number';
     }
   }
-  
+
   return 'string';
 };
 
 export const exportToCSV = (data: DataRow[], filename: string) => {
   const csv = Papa.unparse(data);
   // Add Byte Order Mark (BOM) for Excel to recognize UTF-8
-  const bom = "\uFEFF"; 
+  const bom = "\uFEFF";
   const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   if (link.download !== undefined) {

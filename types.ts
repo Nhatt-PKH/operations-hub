@@ -2,14 +2,14 @@
 
 export const TARGET_COLUMN_NAMES = {
 
-  HEX: 'HEX', 
+  HEX: 'HEX',
 
   CONG_TRINH: 'TÊN CÔNG TRÌNH',
 
   XUONG: 'XƯỞNG CHÍNH',
 
   TINH_TRANG: 'TÌNH TRẠNG',
-  
+
   TINH_TRANG_IPO: 'TÌNH TRẠNG IPO', // New Column
 
   GIA_TRI_CON_LAI: 'GIÁ TRỊ ĐƠN HÀNG CÒN LẠI',
@@ -41,7 +41,7 @@ export const TARGET_COLUMN_NAMES = {
   PHAN_LOAI_KH: 'PHÂN LOẠI KH',
   NGAY_KHNK: 'NGÀY KHNK',
   MA_CONG_TRINH: 'MÃ CÔNG TRÌNH',
-  
+
   // Order Data Specific Columns
   NGAY_NHAN_TU_PM: 'NGÀY NHẬN TỪ PM',
 
@@ -58,11 +58,11 @@ export const TARGET_COLUMN_NAMES = {
   TRACKING_NO: 'TRACKINGNO',
   TEN_VAT_TU: 'TÊN VẬT TƯ',
   NHOM_VT: 'NHÓM VT',
-  
+
   // Material Dashboard Columns
   SL_YEU_CAU: 'SỐ LƯỢNG YÊU CẦU',
   SL_DA_NHAN: 'SỐ LƯỢNG ĐÃ NHẬN (SAP)',
-  STATUS:'TRẠNG THÁI',
+  STATUS: 'TRẠNG THÁI',
   STATUS_SAP: 'TRẠNG THÁI SAP',
   PR_ITEM: 'PR LINE',
   MATERIAL_CODE: 'MÃ VẬT TƯ SAP',
@@ -127,6 +127,7 @@ export const APP_VIEWS: AppView[] = [
   { id: 'yearly_plan_data', path: '/yearly-plan', label: 'Dữ liệu kế hoạch năm', iconName: 'CalendarRange' },
   { id: 'orders', path: '/orders', label: 'Dữ liệu Đơn hàng tổng', iconName: 'ShoppingCart' },
   { id: 'inventory', path: '/inventory', label: 'Dữ liệu Nhập kho', iconName: 'Import' },
+  { id: 'export', path: '/export', label: 'Dữ liệu Xuất kho', iconName: 'Export' },
   { id: 'khsx', path: '/khsx', label: 'Kế hoạch SX', iconName: 'Calendar' },
   { id: 'analysis', path: '/analysis', label: 'Dữ liệu Phân tích KH-TH', iconName: 'TrendingUp' },
   { id: 'tkbv', path: '/tkbv', label: 'Dữ liệu TKBV', iconName: 'FileText' },

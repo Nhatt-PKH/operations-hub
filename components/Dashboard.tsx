@@ -5,7 +5,7 @@ import { DataRow, ColumnDefinition, TARGET_COLUMN_NAMES } from '../types';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, BarChart, Bar, LabelList, ReferenceLine, Label
 } from 'recharts';
-import { CheckCircle, Filter, ChevronDown, XCircle as CloseIcon, Table as TableIcon, Layers, LayoutList, Calculator, Hash, Activity, Package, MinusCircle, Box, ChevronLeft, ChevronRight, CheckSquare, Square, Calendar, DollarSign, ListFilter, Import, BarChart2, PieChart, TrendingUp, AlertCircle, ShoppingCart, FileText, ClipboardList, Clock, AlertTriangle, Download, Eye, X, Building2, ArrowUp, ArrowDown, ArrowUpDown, Search, Target } from 'lucide-react';
+import { CheckCircle, Filter, ChevronDown, XCircle as CloseIcon, Table as TableIcon, Layers, LayoutList, Calculator, Hash, Activity, Package, MinusCircle, Box, ChevronLeft, ChevronRight, CheckSquare, Square, Calendar, DollarSign, ListFilter, Import, BarChart2, PieChart, TrendingUp, AlertCircle, ShoppingCart, FileText, ClipboardList, Clock, AlertTriangle, Download, Eye, X, Building2, ArrowUp, ArrowDown, ArrowUpDown, Search, Target, Briefcase } from 'lucide-react';
 import { exportToCSV } from '../services/dataService';
 
 interface DashboardProps {
@@ -27,6 +27,8 @@ interface DashboardProps {
   yearlyPlanColumns: ColumnDefinition[];
   analysisData: DataRow[];
   analysisColumns: ColumnDefinition[];
+  exportData: DataRow[];
+  exportColumns: ColumnDefinition[];
   isSidebarCollapsed: boolean;
 }
 
@@ -675,6 +677,8 @@ const Dashboard: React.FC<DashboardProps> = ({
   yearlyPlanColumns,
   analysisData,
   analysisColumns,
+  exportData,
+  exportColumns,
   isSidebarCollapsed
 }) => {
   // ... (Same state and refs) ...
@@ -698,6 +702,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [isWeeklyDetailModalOpen, setIsWeeklyDetailModalOpen] = useState(false);
   const [isPthspDetailModalOpen, setIsPthspDetailModalOpen] = useState(false);
   const [isInventoryDetailModalOpen, setIsInventoryDetailModalOpen] = useState(false);
+  const [isExportDetailModalOpen, setIsExportDetailModalOpen] = useState(false);
 
   const findColumnKey = (cols: ColumnDefinition[], target: string) => {
     if (!cols || cols.length === 0) return target;
@@ -752,6 +757,12 @@ const Dashboard: React.FC<DashboardProps> = ({
   const invHexKey = findColumnKey(inventoryColumns, TARGET_COLUMN_NAMES.HEX);
   const nhapKhoTuanKey = findColumnKey(inventoryColumns, TARGET_COLUMN_NAMES.NHAP_KHO_TUAN);
   const invTuanKey = findColumnKey(inventoryColumns, TARGET_COLUMN_NAMES.TUAN);
+
+  const expHexKey = findColumnKey(exportColumns, TARGET_COLUMN_NAMES.HEX);
+  const expThanhTienKey = findColumnKey(exportColumns, TARGET_COLUMN_NAMES.INVENTORY_AMOUNT);
+  const expDateKey = findColumnKey(exportColumns, TARGET_COLUMN_NAMES.DATE);
+  const expXuongKey = findColumnKey(exportColumns, TARGET_COLUMN_NAMES.XUONG);
+  const expCongTrinhKey = findColumnKey(exportColumns, TARGET_COLUMN_NAMES.CONG_TRINH);
 
   const orderHexKey = findColumnKey(orderColumns, TARGET_COLUMN_NAMES.HEX);
   const orderDateKey = findColumnKey(orderColumns, TARGET_COLUMN_NAMES.NGAY_NHAN_TU_PM);
@@ -1247,6 +1258,14 @@ const Dashboard: React.FC<DashboardProps> = ({
     return calculatePivotAnalysis(inventoryData, invDateKey, invCongTrinhKey, invHexKey, invThanhTienKey, latestUnifiedDate);
   }, [inventoryData, latestUnifiedDate, invDateKey, invCongTrinhKey, invHexKey, invThanhTienKey, overviewMetric]);
 
+  const exportWorkshopAnalysis = useMemo(() => {
+    return calculatePivotAnalysis(exportData, expDateKey, expXuongKey, expHexKey, expThanhTienKey, latestUnifiedDate);
+  }, [exportData, latestUnifiedDate, expDateKey, expXuongKey, expHexKey, expThanhTienKey, overviewMetric]);
+
+  const exportProjectAnalysis = useMemo(() => {
+    return calculatePivotAnalysis(exportData, expDateKey, expCongTrinhKey, expHexKey, expThanhTienKey, latestUnifiedDate);
+  }, [exportData, latestUnifiedDate, expDateKey, expCongTrinhKey, expHexKey, expThanhTienKey, overviewMetric]);
+
 
   const monthlyOrderStats = useMemo(() => {
     if (!latestUnifiedDate || !orderDateKey) return { count: 0, value: 0 };
@@ -1310,6 +1329,41 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     return { count, value };
   }, [inventoryData, latestUnifiedDate, invDateKey, invThanhTienKey, invHexKey]);
+
+  const filteredExportOverviewData = useMemo(() => {
+    return exportData.filter(row => {
+      const dateMatch = overviewDateFilters.length === 0 || (expDateKey && overviewDateFilters.includes(String(row[expDateKey] || '').trim()));
+      const congTrinhMatch = filters.congTrinh.length === 0 || (expCongTrinhKey && filters.congTrinh.includes(String(row[expCongTrinhKey!] || '').trim()));
+      const xuongMatch = filters.xuong.length === 0 || (expXuongKey && filters.xuong.includes(String(row[expXuongKey!] || '').trim()));
+      return dateMatch && congTrinhMatch && xuongMatch;
+    });
+  }, [exportData, overviewDateFilters, filters.congTrinh, filters.xuong, expDateKey, expCongTrinhKey, expXuongKey]);
+
+  const exportOverviewCardValue = useMemo(() => {
+    try {
+      if (overviewMetric === 'COUNT') {
+        return countUniqueHex(filteredExportOverviewData, expHexKey);
+      }
+      if (!expThanhTienKey) return 0;
+      return filteredExportOverviewData.reduce((sum, row) => sum + (parseNumber(row[expThanhTienKey])), 0);
+    } catch (err) { return 0; }
+  }, [filteredExportOverviewData, overviewMetric, expThanhTienKey, expHexKey]);
+
+  const monthlyExportStats = useMemo(() => {
+    if (!latestUnifiedDate || !expDateKey) return { count: 0, value: 0 };
+    const tMonth = latestUnifiedDate.getMonth();
+    const tYear = latestUnifiedDate.getFullYear();
+
+    const monthRows = exportData.filter(row => {
+      const d = parseVNDate(String(row[expDateKey] || ''));
+      return d && d.getMonth() === tMonth && d.getFullYear() === tYear;
+    });
+
+    const count = countUniqueHex(monthRows, expHexKey);
+    const value = expThanhTienKey ? monthRows.reduce((sum, row) => sum + parseNumber(row[expThanhTienKey]), 0) : 0;
+
+    return { count, value };
+  }, [exportData, latestUnifiedDate, expDateKey, expThanhTienKey, expHexKey]);
 
   // ... (KHSX & Inventory Chart Logic) ...
   const filteredKhsxData = useMemo(() => {
@@ -2228,18 +2282,16 @@ const Dashboard: React.FC<DashboardProps> = ({
                       </span>
                     </div>
                   </div>
-                  {monthlyOrderStats.count > 0 && (
-                    <div className="z-10 mt-3 pt-3 border-t border-pink-200/60 w-full">
-                      <div className="flex justify-between items-center">
-                        <span className="text-lg font-bold text-pink-800 uppercase">Lũy kế T{latestUnifiedDate?.getMonth()! + 1}:</span>
-                        <span className="text-3xl font-extrabold text-pink-700">
-                          {overviewMetric === 'COUNT'
-                            ? `${monthlyOrderStats.count.toLocaleString('en-US')} đơn`
-                            : (monthlyOrderStats.value / 1000).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 1 }) + ' Tỷ'}
-                        </span>
-                      </div>
+                  <div className="z-10 mt-3 pt-3 border-t border-pink-200/60 w-full">
+                    <div className="flex justify-between items-center">
+                      <span className="text-lg font-bold text-pink-800 uppercase">Lũy kế T{latestUnifiedDate?.getMonth()! + 1}:</span>
+                      <span className="text-3xl font-extrabold text-pink-700">
+                        {overviewMetric === 'COUNT'
+                          ? `${monthlyOrderStats.count.toLocaleString('en-US')} đơn`
+                          : (monthlyOrderStats.value / 1000).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 1 }) + ' Tỷ'}
+                      </span>
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
 
@@ -2265,18 +2317,16 @@ const Dashboard: React.FC<DashboardProps> = ({
                       </span>
                     </div>
                   </div>
-                  {monthlyTkbvStats.count > 0 && (
-                    <div className="z-10 mt-3 pt-3 border-t border-blue-200/60 w-full">
-                      <div className="flex justify-between items-center">
-                        <span className="text-lg font-bold text-blue-800 uppercase">Lũy kế T{latestUnifiedDate?.getMonth()! + 1}:</span>
-                        <span className="text-3xl font-extrabold text-blue-700">
-                          {overviewMetric === 'COUNT'
-                            ? `${monthlyTkbvStats.count.toLocaleString('en-US')} bản vẽ`
-                            : (monthlyTkbvStats.value / 1000).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 1 }) + ' Tỷ'}
-                        </span>
-                      </div>
+                  <div className="z-10 mt-3 pt-3 border-t border-blue-200/60 w-full">
+                    <div className="flex justify-between items-center">
+                      <span className="text-lg font-bold text-blue-800 uppercase">Lũy kế T{latestUnifiedDate?.getMonth()! + 1}:</span>
+                      <span className="text-3xl font-extrabold text-blue-700">
+                        {overviewMetric === 'COUNT'
+                          ? `${monthlyTkbvStats.count.toLocaleString('en-US')} bản vẽ`
+                          : (monthlyTkbvStats.value / 1000).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 1 }) + ' Tỷ'}
+                      </span>
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
 
@@ -2302,18 +2352,16 @@ const Dashboard: React.FC<DashboardProps> = ({
                       </span>
                     </div>
                   </div>
-                  {monthlyPthspStats.count > 0 && (
-                    <div className="z-10 mt-3 pt-3 border-t border-purple-200/60 w-full">
-                      <div className="flex justify-between items-center">
-                        <span className="text-lg font-bold text-purple-800 uppercase">Lũy kế T{latestUnifiedDate?.getMonth()! + 1}:</span>
-                        <span className="text-3xl font-extrabold text-purple-700">
-                          {overviewMetric === 'COUNT'
-                            ? `${monthlyPthspStats.count.toLocaleString('en-US')} phiếu`
-                            : (monthlyPthspStats.value / 1000).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 1 }) + ' Tỷ'}
-                        </span>
-                      </div>
+                  <div className="z-10 mt-3 pt-3 border-t border-purple-200/60 w-full">
+                    <div className="flex justify-between items-center">
+                      <span className="text-lg font-bold text-purple-800 uppercase">Lũy kế T{latestUnifiedDate?.getMonth()! + 1}:</span>
+                      <span className="text-3xl font-extrabold text-purple-700">
+                        {overviewMetric === 'COUNT'
+                          ? `${monthlyPthspStats.count.toLocaleString('en-US')} phiếu`
+                          : (monthlyPthspStats.value / 1000).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 1 }) + ' Tỷ'}
+                      </span>
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
 
@@ -2351,6 +2399,42 @@ const Dashboard: React.FC<DashboardProps> = ({
                       </div>
                     </div>
                   )}
+                </div>
+              </div>
+
+              {/* Card 5: Xuất kho */}
+              <div className="flex flex-col gap-4">
+                <div className="p-5 bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl border border-amber-100 shadow-sm flex flex-col justify-center relative overflow-hidden group hover:shadow-md transition-shadow h-full min-h-[160px]">
+                  <button onClick={() => setIsExportDetailModalOpen(true)} className="absolute top-4 right-4 text-amber-400 hover:text-amber-700 transition-colors z-20" title="Xem chi tiết">
+                    <Eye size={18} />
+                  </button>
+                  <div className="flex items-center gap-2 mb-3 z-10">
+                    <div className="p-2 bg-amber-100 rounded-lg text-amber-600 shadow-sm group-hover:scale-110 transition-transform"><Package size={20} /></div>
+                    <p className="text-sm font-bold text-amber-800 opacity-80 uppercase tracking-wide">5. Xuất kho</p>
+                  </div>
+                  <div className="z-10 flex flex-col items-start">
+                    <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider opacity-70 mb-1 block">Trong ngày</span>
+                    <div className="flex items-baseline gap-2">
+                      <h4 className="text-4xl font-extrabold text-amber-600 tracking-tight">
+                        {overviewMetric === 'COUNT'
+                          ? exportOverviewCardValue.toLocaleString('en-US')
+                          : (exportOverviewCardValue / 1000).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 1 })}
+                      </h4>
+                      <span className="text-sm font-medium text-amber-400">
+                        {overviewMetric === 'COUNT' ? 'items' : 'Tỷ'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="z-10 mt-3 pt-3 border-t border-amber-200/60 w-full">
+                    <div className="flex justify-between items-center">
+                      <span className="text-lg font-bold text-amber-800 uppercase">Lũy kế T{latestUnifiedDate?.getMonth()! + 1}:</span>
+                      <span className="text-3xl font-extrabold text-amber-700">
+                        {overviewMetric === 'COUNT'
+                          ? `${monthlyExportStats.count.toLocaleString('en-US')} items`
+                          : (monthlyExportStats.value / 1000).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 1 }) + ' Tỷ'}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -3378,6 +3462,69 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       )}
 
+      {/* MODAL: CHI TIẾT XUẤT KHO */}
+      {isExportDetailModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-200">
+            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-amber-500 to-orange-600">
+              <div className="flex items-center gap-3 text-white">
+                <div className="p-2 bg-white/20 rounded-lg">
+                  <Package size={24} className="text-white" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white uppercase tracking-wider">Chi tiết Xuất kho</h3>
+                  <p className="text-[10px] text-amber-50 font-medium">{getContextLabel()}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsExportDetailModalOpen(false)}
+                className="p-2 hover:bg-white/20 rounded-full transition-all text-white/90 hover:text-white"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 custom-scrollbar">
+              <DetailModalTable
+                data={exportWorkshopAnalysis}
+                title="Chi tiết theo Xưởng"
+                icon={Layers}
+                //@ts-ignore - latestUnifiedDate property access
+                dateLabel={`NGÀY ${latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth() + 1}/${latestUnifiedDate.getFullYear()}` : ''}`}
+                //@ts-ignore - latestUnifiedDate property access
+                mtdLabel={`LŨY KẾ THÁNG ${latestUnifiedDate ? `${latestUnifiedDate.getMonth() + 1}/${latestUnifiedDate.getFullYear()}` : ''}`}
+                unitLabel={overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                primaryColorClass="text-amber-600"
+                secondaryColorClass="text-orange-600"
+              />
+
+              <div className="mt-8 pt-8 border-t border-slate-200">
+                <DetailModalTable
+                  data={exportProjectAnalysis}
+                  title="Chi tiết theo Công trình"
+                  icon={Briefcase}
+                  //@ts-ignore - latestUnifiedDate property access
+                  dateLabel={`NGÀY ${latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth() + 1}/${latestUnifiedDate.getFullYear()}` : ''}`}
+                  //@ts-ignore - latestUnifiedDate property access
+                  mtdLabel={`LŨY KẾ THÁNG ${latestUnifiedDate ? `${latestUnifiedDate.getMonth() + 1}/${latestUnifiedDate.getFullYear()}` : ''}`}
+                  unitLabel={overviewMetric === 'COUNT' ? '(SL HEX)' : '(Giá trị VND)'}
+                  primaryColorClass="text-amber-700"
+                  secondaryColorClass="text-orange-700"
+                />
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-200 bg-white flex justify-end">
+              <button
+                onClick={() => setIsExportDetailModalOpen(false)}
+                className="px-8 py-2.5 bg-slate-800 text-white font-bold rounded-lg hover:bg-slate-700 transition-all shadow-md active:scale-95"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
