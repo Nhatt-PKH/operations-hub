@@ -2,7 +2,7 @@ import { User, ApiResponse } from '../types';
 
 // *** QUAN TRỌNG: Thay thế URL bên dưới bằng URL Web App bạn tạo từ Google Apps Script ***
 // Ví dụ: https://script.google.com/macros/s/AKfycbx.../exec
-const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyZrf4MKmWPRlaBMqIq0PUaNSMZ1yJAiZDFQl_aQ7QZQ5Himtdtza5LBtgTXxgeYqJWSg/exec'; 
+const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyZrf4MKmWPRlaBMqIq0PUaNSMZ1yJAiZDFQl_aQ7QZQ5Himtdtza5LBtgTXxgeYqJWSg/exec';
 
 /**
  * Gọi API tới Google Apps Script
@@ -20,16 +20,16 @@ const callApi = async <T>(action: string, payload: any = {}): Promise<ApiRespons
     });
 
     const result = await response.json();
-    
+
     // Xử lý lỗi phân quyền cụ thể từ Google Script để báo lỗi dễ hiểu hơn
     if (!result.success && result.message && (
-        result.message.includes("You do not have permission") || 
-        result.message.includes("Authorization is required")
+      result.message.includes("You do not have permission") ||
+      result.message.includes("Authorization is required")
     )) {
-        return { 
-            success: false, 
-            message: "Lỗi Server: Script chưa được cấp quyền gửi Email. Vui lòng Deploy lại Backend." 
-        };
+      return {
+        success: false,
+        message: "Lỗi Server: Script chưa được cấp quyền gửi Email. Vui lòng Deploy lại Backend."
+      };
     }
 
     return result;
@@ -78,26 +78,26 @@ export const userService = {
 
 // --- MOCK HANDLER (Updated for new types) ---
 let MOCK_USERS: User[] = [
-  { 
-    id: '1', 
-    username: 'admin', 
-    password: '123', 
-    fullName: 'Quản trị viên', 
+  {
+    id: '1',
+    username: 'admin',
+    password: '123',
+    fullName: 'Quản trị viên',
     role: 'ADMIN',
     // Admin has full access implicitly, but keeping list for clarity
-    permissions: ['dashboard', 'production', 'orders', 'inventory', 'materials', 'users'], 
+    permissions: ['dashboard', 'production', 'orders', 'inventory', 'materials', 'users', 'export', 'attendance', 'khsx', 'analysis', 'tkbv', 'pthsp', 'yearly_plan_data'],
     status: 'ACTIVE',
     email: 'admin@example.com',
     department: 'IT',
     msnv: 'NV001'
   },
-  { 
-    id: '2', 
-    username: 'manager', 
-    password: '123', 
-    fullName: 'Quản lý SX', 
+  {
+    id: '2',
+    username: 'manager',
+    password: '123',
+    fullName: 'Quản lý SX',
     role: 'USER',
-    permissions: ['dashboard', 'production', 'orders', 'inventory'], // Added 'inventory' permission
+    permissions: ['dashboard', 'production', 'orders', 'inventory', 'export', 'attendance', 'khsx', 'analysis', 'tkbv', 'pthsp', 'materials'], // Added 'inventory' permission
     status: 'ACTIVE',
     email: 'manager@example.com',
     department: 'Production',
@@ -112,14 +112,14 @@ const mockApiHandler = async (action: string, payload: any): Promise<ApiResponse
     case 'login':
       const user = MOCK_USERS.find(u => u.username === payload.username && u.password === payload.password);
       if (user) {
-        if(user.status !== 'ACTIVE') return { success: false, message: 'Tài khoản bị khóa' };
+        if (user.status !== 'ACTIVE') return { success: false, message: 'Tài khoản bị khóa' };
         const { password, ...safeUser } = user;
         return { success: true, user: safeUser as User };
       }
       return { success: false, message: 'Sai tên đăng nhập hoặc mật khẩu (Mặc định: admin/123)' };
-    
+
     case 'getUsers':
-      const safeUsers = MOCK_USERS.map(({password, ...u}) => u);
+      const safeUsers = MOCK_USERS.map(({ password, ...u }) => u);
       return { success: true, data: safeUsers };
 
     case 'addUser':
@@ -142,18 +142,18 @@ const mockApiHandler = async (action: string, payload: any): Promise<ApiResponse
 
     case 'forgotPassword':
       return { success: true, message: 'Mã OTP giả lập: 123456 (Mock)' };
-    
+
     case 'verifyOtp':
       if (payload.otp === '123456') return { success: true, message: 'Đổi mật khẩu thành công (Mock)' };
       return { success: false, message: 'Mã OTP sai (Mock)' };
-    
+
     case 'changePassword':
-        const uIdx = MOCK_USERS.findIndex(u => u.username === payload.username && u.password === payload.oldPassword);
-        if (uIdx !== -1) {
-            MOCK_USERS[uIdx].password = payload.newPassword;
-            return { success: true, message: 'Đổi mật khẩu thành công (Mock)' };
-        }
-        return { success: false, message: 'Mật khẩu cũ không đúng (Mock)' };
+      const uIdx = MOCK_USERS.findIndex(u => u.username === payload.username && u.password === payload.oldPassword);
+      if (uIdx !== -1) {
+        MOCK_USERS[uIdx].password = payload.newPassword;
+        return { success: true, message: 'Đổi mật khẩu thành công (Mock)' };
+      }
+      return { success: false, message: 'Mật khẩu cũ không đúng (Mock)' };
 
     default:
       return { success: false, message: 'Unknown action' };

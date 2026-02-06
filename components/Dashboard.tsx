@@ -826,7 +826,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     ngay: []
   });
 
-  const [khsxPhanLoaiFilter, setKhsxPhanLoaiFilter] = useState<string[]>(['THÁNG 01/2026']);
+  const [khsxPhanLoaiFilter, setKhsxPhanLoaiFilter] = useState<string[]>(['THÁNG 02/2026']);
   const [overviewDateFilters, setOverviewDateFilters] = useState<string[]>([]);
   const [overviewMetric, setOverviewMetric] = useState<'COUNT' | 'SUM'>('COUNT');
   const [selectedMaterialGroups, setSelectedMaterialGroups] = useState<string[]>([]);

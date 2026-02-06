@@ -22,6 +22,7 @@ export const TARGET_COLUMN_NAMES = {
 
   THANH_TIEN_NHAP_KHO: 'THÀNH TIỀN NHẬP KHO LŨY KẾ', // Cột cũ của Production View
   INVENTORY_AMOUNT: 'THÀNH TIỀN NHẬP KHO', // Cột mới chính xác cho Inventory View
+  EXPORT_AMOUNT: 'THÀNH TIỀN XUẤT KHO', // Correct column for Export View
   NHAP_KHO_TUAN: 'NHẬP KHO TUẦN', // Cột mới theo yêu cầu
 
   // Inventory Specific Date Columns
@@ -128,6 +129,7 @@ export const APP_VIEWS: AppView[] = [
   { id: 'orders', path: '/orders', label: 'Dữ liệu Đơn hàng tổng', iconName: 'ShoppingCart' },
   { id: 'inventory', path: '/inventory', label: 'Dữ liệu Nhập kho', iconName: 'Import' },
   { id: 'export', path: '/export', label: 'Dữ liệu Xuất kho', iconName: 'Export' },
+  { id: 'attendance', path: '/attendance', label: 'Dữ liệu Điểm danh', iconName: 'Clock' },
   { id: 'khsx', path: '/khsx', label: 'Kế hoạch SX', iconName: 'Calendar' },
   { id: 'analysis', path: '/analysis', label: 'Dữ liệu Phân tích KH-TH', iconName: 'TrendingUp' },
   { id: 'tkbv', path: '/tkbv', label: 'Dữ liệu TKBV', iconName: 'FileText' },
