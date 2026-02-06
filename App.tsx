@@ -93,6 +93,8 @@ const DashboardWrapper = () => {
     yearlyPlanColumns={context.yearlyPlanColumns}
     exportData={context.exportData}
     exportColumns={context.exportColumns}
+    attendanceData={context.attendanceData}
+    attendanceColumns={context.attendanceColumns}
     isSidebarCollapsed={context.isSidebarCollapsed}
   />;
 };

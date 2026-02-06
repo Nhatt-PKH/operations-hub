@@ -7,6 +7,7 @@ import {
 } from 'recharts';
 import { CheckCircle, Filter, ChevronDown, XCircle as CloseIcon, Table as TableIcon, Layers, LayoutList, Calculator, Hash, Activity, Package, MinusCircle, Box, ChevronLeft, ChevronRight, CheckSquare, Square, Calendar, DollarSign, ListFilter, Import, BarChart2, PieChart, TrendingUp, AlertCircle, ShoppingCart, FileText, ClipboardList, Clock, AlertTriangle, Download, Eye, X, Building2, ArrowUp, ArrowDown, ArrowUpDown, Search, Target, Briefcase } from 'lucide-react';
 import { exportToCSV } from '../services/dataService';
+import ProductivityCharts from './ProductivityCharts';
 
 interface DashboardProps {
   productionData: DataRow[];
@@ -29,6 +30,8 @@ interface DashboardProps {
   analysisColumns: ColumnDefinition[];
   exportData: DataRow[];
   exportColumns: ColumnDefinition[];
+  attendanceData: DataRow[];
+  attendanceColumns: ColumnDefinition[];
   isSidebarCollapsed: boolean;
 }
 
@@ -238,12 +241,14 @@ const DashboardFilter = ({
   label,
   options,
   selectedValues,
-  onChange
+  onChange,
+  singleSelect
 }: {
   label: string;
   options: string[];
   selectedValues: string[];
   onChange: (values: string[]) => void;
+  singleSelect?: boolean;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -264,9 +269,15 @@ const DashboardFilter = ({
   );
 
   const toggleValue = (val: string) => {
-    const newSelected = selectedValues.includes(val)
-      ? selectedValues.filter(v => v !== val)
-      : [...selectedValues, val];
+    let newSelected: string[];
+    if (singleSelect) {
+      // Single select mode: toggle on/off, but only one active
+      newSelected = selectedValues.includes(val) ? [] : [val];
+    } else {
+      newSelected = selectedValues.includes(val)
+        ? selectedValues.filter(v => v !== val)
+        : [...selectedValues, val];
+    }
     onChange(newSelected);
   };
 
@@ -656,6 +667,18 @@ function getWeekNumber(d: Date = new Date()): number {
   return weekNo;
 }
 
+// Helper: Get Week Range for 2026 (Hardcoded Start Dec 29, 2025 as Week 1)
+const getWeekRange2026 = (week: number) => {
+  const week1Start = new Date(2025, 11, 29); // Dec 29, 2025 (Monday)
+  const start = new Date(week1Start);
+  start.setDate(week1Start.getDate() + (week - 1) * 7);
+
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+
+  return { start, end };
+};
+
 // ... (Dashboard Component) ...
 
 const Dashboard: React.FC<DashboardProps> = ({
@@ -679,6 +702,8 @@ const Dashboard: React.FC<DashboardProps> = ({
   analysisColumns,
   exportData,
   exportColumns,
+  attendanceData,
+  attendanceColumns,
   isSidebarCollapsed
 }) => {
   // ... (Same state and refs) ...
@@ -759,7 +784,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const invTuanKey = findColumnKey(inventoryColumns, TARGET_COLUMN_NAMES.TUAN);
 
   const expHexKey = findColumnKey(exportColumns, TARGET_COLUMN_NAMES.HEX);
-  const expThanhTienKey = findColumnKey(exportColumns, TARGET_COLUMN_NAMES.INVENTORY_AMOUNT);
+  const expThanhTienKey = findColumnKey(exportColumns, TARGET_COLUMN_NAMES.EXPORT_AMOUNT);
   const expDateKey = findColumnKey(exportColumns, TARGET_COLUMN_NAMES.DATE);
   const expXuongKey = findColumnKey(exportColumns, TARGET_COLUMN_NAMES.XUONG);
   const expCongTrinhKey = findColumnKey(exportColumns, TARGET_COLUMN_NAMES.CONG_TRINH);
@@ -803,6 +828,18 @@ const Dashboard: React.FC<DashboardProps> = ({
   const analysisVuotKhKey = findColumnKey(analysisColumns, TARGET_COLUMN_NAMES.VUOT_KE_HOACH);
   const analysisNhapKhoNgoaiKhKey = findColumnKey(analysisColumns, TARGET_COLUMN_NAMES.NHAP_KHO_NGOAI_KE_HOACH);
 
+  // Attendance Keys
+  const attXuongKey = findColumnKey(attendanceColumns, TARGET_COLUMN_NAMES.XUONG);
+  const attSoLuongCnKey = findColumnKey(attendanceColumns, TARGET_COLUMN_NAMES.SO_LUONG_CONG_NHAN);
+  const attGioCongHcKey = findColumnKey(attendanceColumns, TARGET_COLUMN_NAMES.GIO_CONG_HC);
+  const attGioCongTcKey = findColumnKey(attendanceColumns, TARGET_COLUMN_NAMES.GIO_CONG_TC);
+  // Try to find a Week column, otherwise we might rely on implied date/week structure, but user asked for Week Filter logic.
+  // Assuming Attendance Data has a 'TUẦN' column or similar compatible with the filter.
+  const attTuanKey = findColumnKey(attendanceColumns, TARGET_COLUMN_NAMES.TUAN);
+  const attNamKey = findColumnKey(attendanceColumns, TARGET_COLUMN_NAMES.NAM);
+  const attThangKey = findColumnKey(attendanceColumns, TARGET_COLUMN_NAMES.THANG);
+  const attNgayKey = findColumnKey(attendanceColumns, TARGET_COLUMN_NAMES.NGAY);
+
 
   const [filters, setFilters] = useState<{
     congTrinh: string[];
@@ -820,13 +857,18 @@ const Dashboard: React.FC<DashboardProps> = ({
     nam: string[];
     thang: string[];
     ngay: string[];
+    tuan: string[];
   }>({
     nam: [new Date().getFullYear().toString()],
     thang: [(new Date().getMonth() + 1).toString()],
-    ngay: []
+    ngay: [],
+    tuan: []
   });
 
-  const [khsxPhanLoaiFilter, setKhsxPhanLoaiFilter] = useState<string[]>(['THÁNG 02/2026']);
+  const [viewMode, setViewMode] = useState<'MONTH' | 'WEEK'>('MONTH');
+
+
+  // const [khsxPhanLoaiFilter, setKhsxPhanLoaiFilter] = useState<string[]>(['THÁNG 02/2026']); // Removed in favor of viewMode logic
   const [overviewDateFilters, setOverviewDateFilters] = useState<string[]>([]);
   const [overviewMetric, setOverviewMetric] = useState<'COUNT' | 'SUM'>('COUNT');
   const [selectedMaterialGroups, setSelectedMaterialGroups] = useState<string[]>([]);
@@ -839,12 +881,10 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [materialListPage, setMaterialListPage] = useState(1);
   const MATERIAL_ITEMS_PER_PAGE = 15;
 
-  const [weekFilter, setWeekFilter] = useState<string[]>([]);
-
   // Default week filter to current week
   useEffect(() => {
     const currentWeek = getWeekNumber();
-    setWeekFilter([String(currentWeek)]);
+    setUnifiedTimeFilters(prev => ({ ...prev, tuan: [String(currentWeek)] }));
   }, []);
 
   // ... (useMemo options blocks) ...
@@ -864,10 +904,12 @@ const Dashboard: React.FC<DashboardProps> = ({
   const khsxNamOptions = useMemo(() => getUniqueOptions(khsxData, khsxNamKey), [khsxData, khsxNamKey]);
   const khsxThangOptions = useMemo(() => getUniqueOptions(khsxData, khsxThangKey), [khsxData, khsxThangKey]);
   const khsxNgayOptions = useMemo(() => getUniqueOptions(khsxData, khsxNgayKey), [khsxData, khsxNgayKey]);
+  const khsxTuanOptions = useMemo(() => getUniqueOptions(khsxData, khsxTuanKey), [khsxData, khsxTuanKey]);
 
   const invNamOptions = useMemo(() => getUniqueOptions(inventoryData, invNamKey), [inventoryData, invNamKey]);
   const invThangOptions = useMemo(() => getUniqueOptions(inventoryData, invThangKey), [inventoryData, invThangKey]);
   const invNgayOptions = useMemo(() => getUniqueOptions(inventoryData, invNgayKey), [inventoryData, invNgayKey]);
+  const invTuanOptions = useMemo(() => getUniqueOptions(inventoryData, invTuanKey), [inventoryData, invTuanKey]);
 
   const unifiedNamOptions = useMemo(() => {
     const s = new Set([...khsxNamOptions, ...invNamOptions]);
@@ -890,6 +932,18 @@ const Dashboard: React.FC<DashboardProps> = ({
       return a.localeCompare(b);
     });
   }, [khsxNgayOptions, invNgayOptions]);
+
+  const unifiedTuanOptions = useMemo(() => {
+    const s = new Set([...khsxTuanOptions, ...invTuanOptions]);
+    return Array.from(s).sort((a, b) => {
+      const valA = parseInt(a);
+      const valB = parseInt(b);
+      if (!isNaN(valA) && !isNaN(valB)) {
+        return valA - valB;
+      }
+      return a.localeCompare(b);
+    });
+  }, [khsxTuanOptions, invTuanOptions]);
 
   const unifiedDateOptions = useMemo(() => {
     const dates = new Set<string>();
@@ -1368,17 +1422,34 @@ const Dashboard: React.FC<DashboardProps> = ({
   // ... (KHSX & Inventory Chart Logic) ...
   const filteredKhsxData = useMemo(() => {
     return khsxData.filter(row => {
-      const matchPhanLoai = khsxPhanLoaiFilter.length === 0 || (khsxPhanLoaiKey && khsxPhanLoaiFilter.includes(String(row[khsxPhanLoaiKey] || '').trim()));
+      // 1. View Mode Logic (Implicit Filter)
+      let matchPhanLoai = false;
+      if (viewMode === 'MONTH') {
+        // Force PHAN_LOAI = THÁNG
+        matchPhanLoai = String(row[khsxPhanLoaiKey] || '').trim().toUpperCase().includes('THÁNG');
+      } else {
+        // Force PHAN_LOAI = TUẦN
+        matchPhanLoai = String(row[khsxPhanLoaiKey] || '').trim().toUpperCase().includes('TUẦN');
+      }
+
+      // 2. Time Filters match
       const matchNam = unifiedTimeFilters.nam.length === 0 || (khsxNamKey && unifiedTimeFilters.nam.includes(String(row[khsxNamKey] || '').trim()));
       const matchThang = unifiedTimeFilters.thang.length === 0 || (khsxThangKey && unifiedTimeFilters.thang.includes(String(row[khsxThangKey] || '').trim()));
-      const matchNgay = unifiedTimeFilters.ngay.length === 0 || (khsxNgayKey && unifiedTimeFilters.ngay.includes(String(row[khsxNgayKey] || '').trim()));
+
+      // Tuan & Ngay only apply in WEEK mode
+      let matchTuan = true;
+      let matchNgay = true;
+      if (viewMode === 'WEEK') {
+        matchTuan = unifiedTimeFilters.tuan.length === 0 || (!!khsxTuanKey && unifiedTimeFilters.tuan.includes(String(row[khsxTuanKey] || '').trim()));
+        matchNgay = unifiedTimeFilters.ngay.length === 0 || (!!khsxNgayKey && unifiedTimeFilters.ngay.includes(String(row[khsxNgayKey] || '').trim()));
+      }
 
       const matchGeneralCongTrinh = filters.congTrinh.length === 0 || (khsxCongTrinhKey && filters.congTrinh.includes(String(row[khsxCongTrinhKey] || '').trim()));
       const matchGeneralXuong = filters.xuong.length === 0 || (khsxXuongKey && filters.xuong.includes(String(row[khsxXuongKey] || '').trim()));
 
-      return matchPhanLoai && matchNam && matchThang && matchNgay && matchGeneralCongTrinh && matchGeneralXuong;
+      return matchPhanLoai && matchNam && matchThang && matchTuan && matchNgay && matchGeneralCongTrinh && matchGeneralXuong;
     });
-  }, [khsxData, khsxPhanLoaiFilter, unifiedTimeFilters, filters.congTrinh, filters.xuong, khsxPhanLoaiKey, khsxNamKey, khsxThangKey, khsxNgayKey, khsxCongTrinhKey, khsxXuongKey]);
+  }, [khsxData, viewMode, unifiedTimeFilters, filters.congTrinh, filters.xuong, khsxPhanLoaiKey, khsxNamKey, khsxThangKey, khsxNgayKey, khsxTuanKey, khsxCongTrinhKey, khsxXuongKey]);
 
   const totalKhsxAmount = useMemo(() => !khsxThanhTienKey ? 0 : filteredKhsxData.reduce((sum, row) => sum + (parseNumber(row[khsxThanhTienKey]) / 1000), 0), [filteredKhsxData, khsxThanhTienKey]);
 
@@ -1414,10 +1485,17 @@ const Dashboard: React.FC<DashboardProps> = ({
       const matchGeneralXuong = filters.xuong.length === 0 || (invXuongKey && filters.xuong.includes(String(row[invXuongKey] || '').trim()));
       const matchNam = unifiedTimeFilters.nam.length === 0 || (invNamKey && unifiedTimeFilters.nam.includes(String(row[invNamKey] || '').trim()));
       const matchThang = unifiedTimeFilters.thang.length === 0 || (invThangKey && unifiedTimeFilters.thang.includes(String(row[invThangKey] || '').trim()));
-      const matchNgay = unifiedTimeFilters.ngay.length === 0 || (invNgayKey && unifiedTimeFilters.ngay.includes(String(row[invNgayKey] || '').trim()));
-      return matchGeneralCongTrinh && matchGeneralXuong && matchNam && matchThang && matchNgay;
+
+      let matchTuan = true;
+      let matchNgay = true;
+      if (viewMode === 'WEEK') {
+        matchTuan = unifiedTimeFilters.tuan.length === 0 || (!!invTuanKey && unifiedTimeFilters.tuan.includes(String(row[invTuanKey] || '').trim()));
+        matchNgay = unifiedTimeFilters.ngay.length === 0 || (!!invNgayKey && unifiedTimeFilters.ngay.includes(String(row[invNgayKey] || '').trim()));
+      }
+
+      return matchGeneralCongTrinh && matchGeneralXuong && matchNam && matchThang && matchTuan && matchNgay;
     });
-  }, [inventoryData, filters.congTrinh, filters.xuong, unifiedTimeFilters, invCongTrinhKey, invXuongKey, invNamKey, invThangKey, invNgayKey]);
+  }, [inventoryData, filters.congTrinh, filters.xuong, unifiedTimeFilters, viewMode, invCongTrinhKey, invXuongKey, invNamKey, invThangKey, invNgayKey, invTuanKey]);
 
   const totalInventoryAmount = useMemo(() => !invThanhTienKey ? 0 : filteredInventoryData.reduce((sum, row) => sum + (parseNumber(row[invThanhTienKey]) / 1000), 0), [filteredInventoryData, invThanhTienKey]);
 
@@ -1493,6 +1571,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   // New logic for Weekly Plan vs Actual Data using Analysis Data Source
   const weeklyPlanVsActualData = useMemo(() => {
+    if (viewMode === 'MONTH') return [];
     if (!analysisXuongKey || !analysisPlanKey || !analysisActualKey) return [];
 
     const map = new Map<string, {
@@ -1509,9 +1588,10 @@ const Dashboard: React.FC<DashboardProps> = ({
     }>();
 
     filteredAnalysisData.forEach(row => {
-      if (weekFilter.length > 0 && analysisWeekKey) {
+      // Use Unified Time Filter (tuan)
+      if (unifiedTimeFilters.tuan.length > 0 && analysisWeekKey) {
         const rowWeek = String(row[analysisWeekKey] || '').trim();
-        if (!weekFilter.includes(rowWeek)) return;
+        if (!unifiedTimeFilters.tuan.includes(rowWeek)) return;
       }
       const xuong = String(row[analysisXuongKey] || 'Chưa phân xưởng').trim();
 
@@ -1557,9 +1637,120 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [
-    filteredAnalysisData, analysisXuongKey, analysisPlanKey, analysisActualKey, analysisWeekKey, weekFilter,
+    filteredAnalysisData, analysisXuongKey, analysisPlanKey, analysisActualKey, analysisWeekKey, unifiedTimeFilters.tuan, viewMode,
     analysisDungKhKey, analysisThucHienDungKh1PhanKey, analysisRotKhKey, analysisThucHienRotKh1PhanKey,
     analysisNhapKhoTruocKhKey, analysisVuotKhKey, analysisNhapKhoNgoaiKhKey
+  ]);
+
+  const productivityAnalysisData = useMemo(() => {
+    if (viewMode === 'MONTH') return [];
+
+    // 1. Aggregate Attendance Data
+    const attendanceMap = new Map<string, {
+      name: string;
+      totalSoLuongCn: number;
+      entryCount: number;
+      gioCongHc: number;
+      gioCongTc: number;
+    }>();
+
+    if (attXuongKey) {
+      attendanceData.forEach(row => {
+        // Filter by Year (Unified Filter)
+        if (unifiedTimeFilters.nam.length > 0 && attNamKey) {
+          const rowNam = String(row[attNamKey] || '').trim();
+          if (!unifiedTimeFilters.nam.includes(rowNam)) return;
+        }
+
+        // Filter by Month (Unified Filter)
+        if (unifiedTimeFilters.thang.length > 0 && attThangKey) {
+          const rowThang = String(row[attThangKey] || '').trim();
+          if (!unifiedTimeFilters.thang.includes(rowThang)) return;
+        }
+
+        // Filter by Week (Unified Filter)
+        if (unifiedTimeFilters.tuan.length > 0 && attTuanKey) {
+          const rowWeek = String(row[attTuanKey] || '').trim();
+          if (!unifiedTimeFilters.tuan.includes(rowWeek)) return;
+        }
+
+        // Filter by Day (Unified Filter)
+        if (unifiedTimeFilters.ngay.length > 0 && attNgayKey) {
+          const rowNgay = String(row[attNgayKey] || '').trim();
+          if (!unifiedTimeFilters.ngay.includes(rowNgay)) return;
+        }
+
+        const xuong = String(row[attXuongKey] || 'Chưa phân xưởng').trim();
+
+        const slCn = attSoLuongCnKey ? parseNumber(row[attSoLuongCnKey]) : 0;
+        const gioHc = attGioCongHcKey ? parseNumber(row[attGioCongHcKey]) : 0;
+        const gioTc = attGioCongTcKey ? parseNumber(row[attGioCongTcKey]) : 0;
+
+        if (!attendanceMap.has(xuong)) {
+          attendanceMap.set(xuong, { name: xuong, totalSoLuongCn: 0, entryCount: 0, gioCongHc: 0, gioCongTc: 0 });
+        }
+        const entry = attendanceMap.get(xuong)!;
+        entry.totalSoLuongCn += slCn;
+        entry.entryCount += 1;
+        entry.gioCongHc += gioHc;
+        entry.gioCongTc += gioTc;
+      });
+    }
+
+    // 2. Aggregate Inventory Data (Sales)
+    // filteredInventoryData is already filtered by Unified Time Filters (Year, Month, Week)
+    const inventoryMap = new Map<string, number>();
+    if (invXuongKey && invThanhTienKey) {
+      filteredInventoryData.forEach(row => {
+        const xuong = String(row[invXuongKey] || 'Chưa phân xưởng').trim();
+        const val = parseNumber(row[invThanhTienKey]);
+        inventoryMap.set(xuong, (inventoryMap.get(xuong) || 0) + val);
+      });
+    }
+
+    // 3. Combine and Calculate Metrics
+    const allKeys = new Set([...attendanceMap.keys(), ...inventoryMap.keys()]);
+    const result: any[] = [];
+
+    allKeys.forEach(xuong => {
+      const att = attendanceMap.get(xuong) || { name: xuong, totalSoLuongCn: 0, entryCount: 0, gioCongHc: 0, gioCongTc: 0 };
+      const sales = inventoryMap.get(xuong) || 0;
+
+      // 1. Worker Count as Average
+      const avgWorkers = att.entryCount > 0 ? att.totalSoLuongCn / att.entryCount : 0;
+      const totalHours = att.gioCongHc + att.gioCongTc;
+
+      // 3. Derived Metrics
+      // BQ DS / 1 Giờ công
+      const salesPerHour = totalHours > 0 ? sales / totalHours : 0;
+      // BQ DS / 1 Công nhân
+      const salesPerWorker = avgWorkers > 0 ? sales / avgWorkers : 0;
+      // Tỉ lệ Giờ tăng ca / Tổng giờ công
+      const overtimeRate = totalHours > 0 ? (att.gioCongTc / totalHours) * 100 : 0;
+      // BQ Giờ công / 1 Công nhân
+      const hoursPerWorker = avgWorkers > 0 ? totalHours / avgWorkers : 0;
+
+      if (att.entryCount === 0 && sales === 0) return;
+
+      result.push({
+        name: xuong,
+        avgWorkers,
+        totalHc: att.gioCongHc,
+        totalTc: att.gioCongTc,
+        totalHours,
+        sales,
+        salesPerHour,
+        salesPerWorker,
+        overtimeRate,
+        hoursPerWorker
+      });
+    });
+
+    return result.sort((a, b) => a.name.localeCompare(b.name));
+  }, [
+    attendanceData, filteredInventoryData, viewMode, unifiedTimeFilters.tuan, unifiedTimeFilters.nam, unifiedTimeFilters.thang, unifiedTimeFilters.ngay,
+    attXuongKey, attTuanKey, attNamKey, attThangKey, attNgayKey, attSoLuongCnKey, attGioCongHcKey, attGioCongTcKey,
+    invXuongKey, invThanhTienKey
   ]);
 
   const completionRate = useMemo(() => totalKhsxAmount > 0 ? (totalInventoryAmount / totalKhsxAmount) * 100 : 0, [totalInventoryAmount, totalKhsxAmount]);
@@ -2648,6 +2839,31 @@ const Dashboard: React.FC<DashboardProps> = ({
                   <span className="text-[10px] font-bold text-slate-500 uppercase">BỘ LỌC THỜI GIAN CHUNG:</span>
                 </div>
 
+                <div className="flex bg-white rounded-lg border border-slate-200 p-0.5 shadow-sm">
+                  <button
+                    onClick={() => { setViewMode('MONTH'); setUnifiedTimeFilters(prev => ({ ...prev, tuan: [], ngay: [] })); }}
+                    className={`px-3 py-1 text-[10px] font-bold rounded ${viewMode === 'MONTH' ? 'bg-indigo-100 text-indigo-700 shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
+                  >
+                    Xem theo THÁNG
+                  </button>
+                  <button
+                    onClick={() => {
+                      setViewMode('WEEK');
+                      setUnifiedTimeFilters(prev => {
+                        if (prev.tuan.length === 0) {
+                          return { ...prev, tuan: [String(getWeekNumber())] };
+                        }
+                        return prev;
+                      });
+                    }}
+                    className={`px-3 py-1 text-[10px] font-bold rounded ${viewMode === 'WEEK' ? 'bg-indigo-100 text-indigo-700 shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
+                  >
+                    Xem theo TUẦN
+                  </button>
+                </div>
+
+                <div className="w-px h-6 bg-slate-300 mx-1"></div>
+
                 <DashboardFilter
                   label="LỌC NĂM"
                   options={unifiedNamOptions}
@@ -2660,28 +2876,28 @@ const Dashboard: React.FC<DashboardProps> = ({
                   selectedValues={unifiedTimeFilters.thang}
                   onChange={(vals) => setUnifiedTimeFilters(prev => ({ ...prev, thang: vals }))}
                 />
-                <DashboardFilter
-                  label="LỌC NGÀY"
-                  options={unifiedNgayOptions}
-                  selectedValues={unifiedTimeFilters.ngay}
-                  onChange={(vals) => setUnifiedTimeFilters(prev => ({ ...prev, ngay: vals }))}
-                />
 
-                {(unifiedTimeFilters.nam.length > 0 || unifiedTimeFilters.thang.length > 0 || unifiedTimeFilters.ngay.length > 0) && (
-                  <button onClick={() => setUnifiedTimeFilters({ nam: [], thang: [], ngay: [] })} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg border border-red-100 bg-white" title="Xóa lọc thời gian">
-                    <CloseIcon size={16} />
-                  </button>
+                {viewMode === 'WEEK' && (
+                  <>
+                    <DashboardFilter
+                      label="LỌC TUẦN"
+                      options={unifiedTuanOptions}
+                      selectedValues={unifiedTimeFilters.tuan}
+                      onChange={(vals) => setUnifiedTimeFilters(prev => ({ ...prev, tuan: vals }))}
+                    />
+                    <DashboardFilter
+                      label="LỌC NGÀY"
+                      options={unifiedNgayOptions}
+                      selectedValues={unifiedTimeFilters.ngay}
+                      onChange={(vals) => setUnifiedTimeFilters(prev => ({ ...prev, ngay: vals }))}
+                    />
+                  </>
                 )}
 
-                <div className="w-px h-6 bg-slate-300 mx-1"></div>
-
-                {khsxPhanLoaiKey && (
-                  <DashboardFilter
-                    label="PHÂN LOẠI (CHỈ KH)"
-                    options={khsxPhanLoaiOptions}
-                    selectedValues={khsxPhanLoaiFilter}
-                    onChange={setKhsxPhanLoaiFilter}
-                  />
+                {(unifiedTimeFilters.nam.length > 0 || unifiedTimeFilters.thang.length > 0 || unifiedTimeFilters.tuan.length > 0 || unifiedTimeFilters.ngay.length > 0) && (
+                  <button onClick={() => setUnifiedTimeFilters({ nam: [], thang: [], ngay: [], tuan: [] })} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg border border-red-100 bg-white" title="Xóa lọc thời gian">
+                    <CloseIcon size={16} />
+                  </button>
                 )}
               </div>
             </div>
@@ -2694,7 +2910,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </div>
                 <h4 className="text-2xl lg:text-3xl font-bold text-orange-600 tracking-tight">{formatDecimal(totalKhsxAmount)}</h4>
                 <div className="mt-1 text-[10px] text-orange-800/60 italic">
-                  {khsxPhanLoaiFilter.length > 0 ? `Lọc: ${khsxPhanLoaiFilter.join(', ')}` : 'Toàn bộ'}
+                  {`Chế độ xem: ${viewMode === 'MONTH' ? 'Theo Tháng' : 'Theo Tuần'}`}
                 </div>
               </div>
               <div className="p-4 bg-gradient-to-br from-teal-50 to-emerald-50 rounded-xl border border-teal-100 shadow-sm flex flex-col justify-center relative overflow-hidden">
@@ -2800,133 +3016,223 @@ const Dashboard: React.FC<DashboardProps> = ({
               </div>
             </div>
 
-            <div className="w-full mt-4">
-              <div className="flex justify-between items-center mb-4">
-                <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2 uppercase tracking-wide">
-                  <TableIcon className="w-4 h-4 text-orange-600" /> Phân tích Kế hoạch-Thực hiện Tuần
-                </h4>
-                <DashboardFilter
-                  label="Lọc Tuần"
-                  options={weekOptions}
-                  selectedValues={weekFilter}
-                  onChange={(vals) => setWeekFilter(vals)}
-                />
-              </div>
+            {viewMode === 'WEEK' && (
+              <div className="w-full mt-4">
+                <div className="flex justify-between items-center mb-4">
+                  <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2 uppercase tracking-wide">
+                    <TableIcon className="w-4 h-4 text-orange-600" /> Phân tích Kế hoạch-Thực hiện Tuần
+                  </h4>
+                </div>
 
-              {weeklyPlanVsActualData.length > 0 ? (
-                <div className="flex flex-col xl:flex-row gap-6 items-start">
-                  {/* Bảng Tổng quan */}
-                  <div className="overflow-x-auto custom-scrollbar border border-slate-200 rounded-lg flex-1 min-w-0">
-                    <div className="p-3 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-                      <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2 uppercase tracking-wide">
-                        <TableIcon className="w-4 h-4 text-wood-500" /> Phân tích Tổng quan Kế hoạch-Thực hiện Tuần
-                      </h4>
-                      <button
-                        onClick={() => setIsWeeklyDetailModalOpen(true)}
-                        className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-slate-200"
-                        title="Xem chi tiết"
-                      >
-                        <Eye size={16} />
-                      </button>
+                {weeklyPlanVsActualData.length > 0 ? (
+                  <div className="flex flex-col xl:flex-row gap-6 items-start">
+                    {/* Bảng Tổng quan */}
+                    <div className="overflow-x-auto custom-scrollbar border border-slate-200 rounded-lg flex-1 min-w-0">
+                      <div className="p-3 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                        <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2 uppercase tracking-wide">
+                          <TableIcon className="w-4 h-4 text-wood-500" />
+                          {(() => {
+                            const w = parseInt(unifiedTimeFilters.tuan[0] || '0');
+                            if (!w) return 'KẾ HOẠCH-THỰC HIỆN TUẦN';
+                            const { start, end } = getWeekRange2026(w);
+                            const fmt = (d: Date) => `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+                            return `KẾ HOẠCH-THỰC HIỆN TUẦN ${w} (từ ${fmt(start)} đến ${fmt(end)})`;
+                          })()}
+                        </h4>
+                        <button
+                          onClick={() => setIsWeeklyDetailModalOpen(true)}
+                          className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-slate-200"
+                          title="Xem chi tiết"
+                        >
+                          <Eye size={16} />
+                        </button>
+                      </div>
+                      <table className="w-full text-xs text-right min-w-[800px]">
+                        <thead className="bg-wood-50 text-slate-700 font-semibold uppercase">
+                          <tr>
+                            <th className="px-4 py-3 text-left sticky left-0 bg-wood-50 border-b border-wood-200 z-10 w-32">Xưởng Chính</th>
+                            <th className="px-4 py-3 border-b border-wood-200 text-orange-900">Thành tiền Kế hoạch</th>
+                            <th className="px-4 py-3 border-b border-wood-200 text-orange-900">Nhập kho Tuần</th>
+                            <th className="px-4 py-3 border-b border-wood-200 text-orange-900">Tỷ lệ (Tuần/KH)</th>
+                            <th className="px-4 py-3 border-b border-wood-200 text-green-700 bg-green-50">ĐÚNG TIẾN ĐỘ</th>
+                            <th className="px-4 py-3 border-b border-wood-200 text-red-700 bg-red-50">CHẬM TIẾN ĐỘ</th>
+                            <th className="px-4 py-3 border-b border-wood-200 text-teal-700 bg-teal-50">NGOÀI KẾ HOẠCH</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {weeklyPlanVsActualData.map((item, idx) => {
+                            const dungTienDo = item.dungKh + item.thucHienDungKh1Phan + item.nhapKhoTruocKh;
+                            const chamTienDo = item.rotKh + item.thucHienRotKh1Phan;
+                            const ngoaiKeHoach = item.vuotKh + item.nhapKhoNgoaiKh;
+                            const percent = item.plan > 0 ? (item.actualWeek / item.plan) * 100 : 0;
+
+                            return (
+                              <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                <td className="px-4 py-3 text-left font-medium text-slate-700 sticky left-0 bg-white hover:bg-slate-50 z-10 border-r border-slate-100">{item.name}</td>
+                                <td className="px-4 py-3 text-slate-600 font-bold">{formatDecimal(item.plan)}</td>
+                                <td className="px-4 py-3 font-bold text-slate-800">{formatDecimal(item.actualWeek)}</td>
+                                <td className="px-4 py-3">
+                                  <span className={`px-2 py-1 rounded font-bold text-[10px] inline-block w-16 text-center ${percent >= 80 ? 'bg-green-100 text-green-700' : percent >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                                    {formatDecimal(percent)}%
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-green-700 bg-green-50/30 font-bold">{formatDecimal(dungTienDo)}</td>
+                                <td className="px-4 py-3 text-red-700 bg-red-50/30 font-bold">{formatDecimal(chamTienDo)}</td>
+                                <td className="px-4 py-3 text-teal-700 bg-teal-50/30 font-bold">{formatDecimal(ngoaiKeHoach)}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot className="bg-wood-100 font-bold text-slate-800 border-t border-wood-300">
+                          <tr>
+                            <td className="px-4 py-3 text-left sticky left-0 bg-wood-100 z-10">TỔNG CỘNG</td>
+                            <td className="px-4 py-3">{formatDecimal(weeklyPlanVsActualData.reduce((a, b) => a + b.plan, 0))}</td>
+                            <td className="px-4 py-3">{formatDecimal(weeklyPlanVsActualData.reduce((a, b) => a + b.actualWeek, 0))}</td>
+                            <td className="px-4 py-3">
+                              {(() => {
+                                const totalPlan = weeklyPlanVsActualData.reduce((a, b) => a + b.plan, 0);
+                                const totalActual = weeklyPlanVsActualData.reduce((a, b) => a + b.actualWeek, 0);
+                                const totalPercent = totalPlan > 0 ? (totalActual / totalPlan) * 100 : 0;
+                                return `${formatDecimal(totalPercent)}%`;
+                              })()}
+                            </td>
+                            <td className="px-4 py-3 text-green-800 bg-green-100/50">
+                              {formatDecimal(weeklyPlanVsActualData.reduce((a, b) => a + b.dungKh + b.thucHienDungKh1Phan + b.nhapKhoTruocKh, 0))}
+                            </td>
+                            <td className="px-4 py-3 text-red-800 bg-red-100/50">
+                              {formatDecimal(weeklyPlanVsActualData.reduce((a, b) => a + b.rotKh + b.thucHienRotKh1Phan, 0))}
+                            </td>
+                            <td className="px-4 py-3 text-teal-800 bg-teal-100/50">
+                              {formatDecimal(weeklyPlanVsActualData.reduce((a, b) => a + b.vuotKh + b.nhapKhoNgoaiKh, 0))}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
                     </div>
-                    <table className="w-full text-xs text-right min-w-[800px]">
-                      <thead className="bg-wood-50 text-slate-700 font-semibold uppercase">
+
+
+                    {/* Venn Diagram */}
+                    <div className="w-full xl:w-auto xl:max-w-[40%] shrink-0">
+                      {(() => {
+                        // Calculate Data for Venn Diagram
+                        const totalPlan = weeklyPlanVsActualData.reduce((a, b) => a + b.plan, 0);
+                        const totalActual = weeklyPlanVsActualData.reduce((a, b) => a + b.actualWeek, 0);
+
+                        // Intersection (Đúng tiến độ)
+                        const intersection = weeklyPlanVsActualData.reduce((a, b) => a + b.dungKh + b.thucHienDungKh1Phan + b.nhapKhoTruocKh, 0);
+
+                        // Left Only (Chậm tiến độ - Rớt KH)
+                        const leftOnly = weeklyPlanVsActualData.reduce((a, b) => a + b.rotKh + b.thucHienRotKh1Phan, 0);
+
+                        // Right Only (Ngoài kế hoạch - Vượt KH)
+                        const rightOnly = weeklyPlanVsActualData.reduce((a, b) => a + b.vuotKh + b.nhapKhoNgoaiKh, 0);
+
+                        return (
+                          <WeeklyVennDiagram
+                            totalPlan={totalPlan}
+                            totalActual={totalActual}
+                            intersection={intersection}
+                            leftOnly={leftOnly}
+                            rightOnly={rightOnly}
+                          />
+                        );
+                      })()}
+                    </div>
+
+                    {/* The Detailed Table logic is moved to the modal section at the end of the file */}
+                  </div>
+                ) : (
+                  <div className="p-8 text-center text-slate-500 bg-slate-50 rounded-lg">Không có dữ liệu phân tích tuần (Kiểm tra lại bộ lọc hoặc dữ liệu nguồn).</div>
+                )}
+              </div>
+            )}
+
+            {/* Phân tích Năng suất */}
+            {viewMode === 'WEEK' && (
+              <div className="w-full mt-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2 uppercase tracking-wide">
+                    <Activity className="w-4 h-4 text-purple-600" /> Phân tích Năng suất (Dữ liệu Điểm danh)
+                  </h4>
+                </div>
+
+                {productivityAnalysisData.length > 0 ? (
+                  <div className="overflow-x-auto custom-scrollbar border border-slate-200 rounded-lg">
+                    <table className="w-full text-xs text-right min-w-[1200px]">
+                      <thead className="bg-purple-50 text-slate-700 font-semibold uppercase">
                         <tr>
-                          <th className="px-4 py-3 text-left sticky left-0 bg-wood-50 border-b border-wood-200 z-10 w-32">Xưởng Chính</th>
-                          <th className="px-4 py-3 border-b border-wood-200 text-orange-900">Thành tiền Kế hoạch</th>
-                          <th className="px-4 py-3 border-b border-wood-200 text-orange-900">Nhập kho Tuần</th>
-                          <th className="px-4 py-3 border-b border-wood-200 text-orange-900">Tỷ lệ (Tuần/KH)</th>
-                          <th className="px-4 py-3 border-b border-wood-200 text-green-700 bg-green-50">ĐÚNG TIẾN ĐỘ</th>
-                          <th className="px-4 py-3 border-b border-wood-200 text-red-700 bg-red-50">CHẬM TIẾN ĐỘ</th>
-                          <th className="px-4 py-3 border-b border-wood-200 text-teal-700 bg-teal-50">NGOÀI KẾ HOẠCH</th>
+                          <th className="px-4 py-3 text-left border-b border-purple-200 sticky left-0 bg-purple-50 z-10 w-[200px]">Xưởng Chính</th>
+                          <th className="px-2 py-3 border-b border-purple-200 text-slate-600" title="Trung bình cộng">TB Số Lượng CN</th>
+                          <th className="px-2 py-3 border-b border-purple-200 text-slate-600">Tổng Giờ HC</th>
+                          <th className="px-2 py-3 border-b border-purple-200 text-slate-600">Tổng Giờ TC</th>
+                          <th className="px-2 py-3 border-b border-purple-200 text-purple-800 bg-purple-100/30">Doanh Số Nhập Kho</th>
+                          <th className="px-2 py-3 border-b border-purple-200 text-blue-700">BQ DS / 1 Giờ</th>
+                          <th className="px-2 py-3 border-b border-purple-200 text-blue-700">BQ DS / 1 CN</th>
+                          <th className="px-2 py-3 border-b border-purple-200 text-orange-700">Tỉ lệ Giờ TC (%)</th>
+                          <th className="px-2 py-3 border-b border-purple-200 text-orange-700">BQ Giờ Công / 1 CN</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {weeklyPlanVsActualData.map((item, idx) => {
-                          const dungTienDo = item.dungKh + item.thucHienDungKh1Phan + item.nhapKhoTruocKh;
-                          const chamTienDo = item.rotKh + item.thucHienRotKh1Phan;
-                          const ngoaiKeHoach = item.vuotKh + item.nhapKhoNgoaiKh;
-                          const percent = item.plan > 0 ? (item.actualWeek / item.plan) * 100 : 0;
-
-                          return (
-                            <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                              <td className="px-4 py-3 text-left font-medium text-slate-700 sticky left-0 bg-white hover:bg-slate-50 z-10 border-r border-slate-100">{item.name}</td>
-                              <td className="px-4 py-3 text-slate-600 font-bold">{formatDecimal(item.plan)}</td>
-                              <td className="px-4 py-3 font-bold text-slate-800">{formatDecimal(item.actualWeek)}</td>
-                              <td className="px-4 py-3">
-                                <span className={`px-2 py-1 rounded font-bold text-[10px] inline-block w-16 text-center ${percent >= 80 ? 'bg-green-100 text-green-700' : percent >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
-                                  {formatDecimal(percent)}%
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-green-700 bg-green-50/30 font-bold">{formatDecimal(dungTienDo)}</td>
-                              <td className="px-4 py-3 text-red-700 bg-red-50/30 font-bold">{formatDecimal(chamTienDo)}</td>
-                              <td className="px-4 py-3 text-teal-700 bg-teal-50/30 font-bold">{formatDecimal(ngoaiKeHoach)}</td>
-                            </tr>
-                          );
-                        })}
+                        {productivityAnalysisData.map((item, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-4 py-3 text-left font-medium text-slate-700 sticky left-0 bg-white z-10 border-r border-slate-100 drop-shadow-sm">{item.name}</td>
+                            <td className="px-2 py-3 text-slate-700">{formatDecimal(item.avgWorkers)}</td>
+                            <td className="px-2 py-3 text-slate-600">{formatDecimal(item.totalHc)}</td>
+                            <td className="px-2 py-3 text-slate-600">{formatDecimal(item.totalTc)}</td>
+                            <td className="px-2 py-3 text-purple-700 font-bold bg-purple-50/20">{formatDecimal(item.sales)}</td>
+                            <td className="px-2 py-3 text-blue-600 font-medium">{formatDecimal(item.salesPerHour)}</td>
+                            <td className="px-2 py-3 text-blue-600 font-medium">{formatDecimal(item.salesPerWorker)}</td>
+                            <td className="px-2 py-3 text-orange-600">{formatDecimal(item.overtimeRate)}%</td>
+                            <td className="px-2 py-3 text-orange-600">{formatDecimal(item.hoursPerWorker)}</td>
+                          </tr>
+                        ))}
                       </tbody>
-                      <tfoot className="bg-wood-100 font-bold text-slate-800 border-t border-wood-300">
+                      <tfoot className="bg-purple-100 font-bold text-slate-800 border-t border-purple-300">
                         <tr>
-                          <td className="px-4 py-3 text-left sticky left-0 bg-wood-100 z-10">TỔNG CỘNG</td>
-                          <td className="px-4 py-3">{formatDecimal(weeklyPlanVsActualData.reduce((a, b) => a + b.plan, 0))}</td>
-                          <td className="px-4 py-3">{formatDecimal(weeklyPlanVsActualData.reduce((a, b) => a + b.actualWeek, 0))}</td>
-                          <td className="px-4 py-3">
-                            {(() => {
-                              const totalPlan = weeklyPlanVsActualData.reduce((a, b) => a + b.plan, 0);
-                              const totalActual = weeklyPlanVsActualData.reduce((a, b) => a + b.actualWeek, 0);
-                              const totalPercent = totalPlan > 0 ? (totalActual / totalPlan) * 100 : 0;
-                              return `${formatDecimal(totalPercent)}%`;
-                            })()}
+                          <td className="px-4 py-3 text-left sticky left-0 bg-purple-100 z-10 w-[200px]">TỔNG CỘNG / BÌNH QUÂN</td>
+                          <td className="px-2 py-3">
+                            {formatDecimal(productivityAnalysisData.reduce((sum, item) => sum + item.avgWorkers, 0))}
                           </td>
-                          <td className="px-4 py-3 text-green-800 bg-green-100/50">
-                            {formatDecimal(weeklyPlanVsActualData.reduce((a, b) => a + b.dungKh + b.thucHienDungKh1Phan + b.nhapKhoTruocKh, 0))}
-                          </td>
-                          <td className="px-4 py-3 text-red-800 bg-red-100/50">
-                            {formatDecimal(weeklyPlanVsActualData.reduce((a, b) => a + b.rotKh + b.thucHienRotKh1Phan, 0))}
-                          </td>
-                          <td className="px-4 py-3 text-teal-800 bg-teal-100/50">
-                            {formatDecimal(weeklyPlanVsActualData.reduce((a, b) => a + b.vuotKh + b.nhapKhoNgoaiKh, 0))}
-                          </td>
+                          <td className="px-2 py-3">{formatDecimal(productivityAnalysisData.reduce((sum, item) => sum + item.totalHc, 0))}</td>
+                          <td className="px-2 py-3">{formatDecimal(productivityAnalysisData.reduce((sum, item) => sum + item.totalTc, 0))}</td>
+                          <td className="px-2 py-3 text-purple-900">{formatDecimal(productivityAnalysisData.reduce((sum, item) => sum + item.sales, 0))}</td>
+
+                          {(() => {
+                            const totalSales = productivityAnalysisData.reduce((sum, item) => sum + item.sales, 0);
+                            const totalAvgWorkers = productivityAnalysisData.reduce((sum, item) => sum + item.avgWorkers, 0);
+                            const totalHc = productivityAnalysisData.reduce((sum, item) => sum + item.totalHc, 0);
+                            const totalTc = productivityAnalysisData.reduce((sum, item) => sum + item.totalTc, 0);
+                            const totalHours = totalHc + totalTc;
+
+                            const avgSalesPerHour = totalHours > 0 ? totalSales / totalHours : 0;
+                            const avgSalesPerWorker = totalAvgWorkers > 0 ? totalSales / totalAvgWorkers : 0;
+                            const avgOvertimeRate = totalHours > 0 ? (totalTc / totalHours) * 100 : 0;
+                            const avgHoursPerWorker = totalAvgWorkers > 0 ? totalHours / totalAvgWorkers : 0;
+
+                            return (
+                              <>
+                                <td className="px-2 py-3 text-blue-800">{formatDecimal(avgSalesPerHour)}</td>
+                                <td className="px-2 py-3 text-blue-800">{formatDecimal(avgSalesPerWorker)}</td>
+                                <td className="px-2 py-3 text-orange-800">{formatDecimal(avgOvertimeRate)}%</td>
+                                <td className="px-2 py-3 text-orange-800">{formatDecimal(avgHoursPerWorker)}</td>
+                              </>
+                            );
+                          })()}
                         </tr>
                       </tfoot>
                     </table>
                   </div>
+                ) : (
+                  <div className="p-8 text-center text-slate-500 bg-slate-50 rounded-lg">Không có dữ liệu năng suất cho tuần này.</div>
+                )}
 
+                {/* Performance Charts Section */}
+                {productivityAnalysisData.length > 0 && (
+                  <ProductivityCharts data={productivityAnalysisData} />
+                )}
+              </div>
+            )}
 
-                  {/* Venn Diagram */}
-                  <div className="w-full xl:w-auto xl:max-w-[40%] shrink-0">
-                    {(() => {
-                      // Calculate Data for Venn Diagram
-                      const totalPlan = weeklyPlanVsActualData.reduce((a, b) => a + b.plan, 0);
-                      const totalActual = weeklyPlanVsActualData.reduce((a, b) => a + b.actualWeek, 0);
-
-                      // Intersection (Đúng tiến độ)
-                      const intersection = weeklyPlanVsActualData.reduce((a, b) => a + b.dungKh + b.thucHienDungKh1Phan + b.nhapKhoTruocKh, 0);
-
-                      // Left Only (Chậm tiến độ - Rớt KH)
-                      const leftOnly = weeklyPlanVsActualData.reduce((a, b) => a + b.rotKh + b.thucHienRotKh1Phan, 0);
-
-                      // Right Only (Ngoài kế hoạch - Vượt KH)
-                      const rightOnly = weeklyPlanVsActualData.reduce((a, b) => a + b.vuotKh + b.nhapKhoNgoaiKh, 0);
-
-                      return (
-                        <WeeklyVennDiagram
-                          totalPlan={totalPlan}
-                          totalActual={totalActual}
-                          intersection={intersection}
-                          leftOnly={leftOnly}
-                          rightOnly={rightOnly}
-                        />
-                      );
-                    })()}
-                  </div>
-
-                  {/* The Detailed Table logic is moved to the modal section at the end of the file */}
-                </div>
-              ) : (
-                <div className="p-8 text-center text-slate-500 bg-slate-50 rounded-lg">Không có dữ liệu phân tích tuần (Kiểm tra lại bộ lọc hoặc dữ liệu nguồn).</div>
-              )}
-            </div>
           </div>
         )}
 

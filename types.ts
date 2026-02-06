@@ -86,7 +86,12 @@ export const TARGET_COLUMN_NAMES = {
   THUC_HIEN_ROT_KE_HOACH_1_PHAN: 'THỰC HIỆN RỚT KẾ HOẠCH 1 PHẦN',
   NHAP_KHO_TRUOC_KE_HOACH: 'NHẬP KHO TRƯỚC KẾ HOẠCH',
   VUOT_KE_HOACH: 'VƯỢT KẾ HOẠCH',
-  NHAP_KHO_NGOAI_KE_HOACH: 'NHẬP KHO NGOÀI KẾ HOẠCH'
+  NHAP_KHO_NGOAI_KE_HOACH: 'NHẬP KHO NGOÀI KẾ HOẠCH',
+
+  // Attendance Columns
+  SO_LUONG_CONG_NHAN: 'SỐ LƯỢNG CÔNG NHÂN',
+  GIO_CONG_HC: 'GIỜ CÔNG HÀNH CHÍNH',
+  GIO_CONG_TC: 'GIỜ CÔNG TĂNG CA'
 };
 
 export type DataRow = Record<string, any>;
