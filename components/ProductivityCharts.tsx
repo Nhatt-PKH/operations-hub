@@ -35,6 +35,10 @@ const formatPercent = (value: number) => {
     return `${value.toFixed(1)}%`;
 };
 
+const formatDecimal = (value: number) => {
+    return !Number.isFinite(value) ? '0' : value.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+};
+
 // Custom Tooltip for better readability
 const CustomTooltip = ({ active, payload, label, formatter }: any) => {
     if (active && payload && payload.length) {
@@ -50,6 +54,42 @@ const CustomTooltip = ({ active, payload, label, formatter }: any) => {
                         </span>
                     </div>
                 ))}
+            </div>
+        );
+    }
+    return null;
+};
+
+const Chart1Tooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+        const data = payload[0].payload;
+        return (
+            <div className="bg-white p-3 border border-slate-200 rounded-lg shadow-lg">
+                <p className="text-xs font-bold text-slate-700 mb-2">{label}</p>
+                <div className="flex items-center justify-between gap-4">
+                    <span className="text-xs text-purple-600 font-medium">Doanh số:</span>
+                    <span className="text-sm font-bold text-purple-700">
+                        {formatDecimal(data.sales / 1000)}
+                    </span>
+                </div>
+            </div>
+        );
+    }
+    return null;
+};
+
+const Chart2Tooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+        const data = payload[0].payload;
+        return (
+            <div className="bg-white p-3 border border-slate-200 rounded-lg shadow-lg">
+                <p className="text-xs font-bold text-slate-700 mb-2">{label}</p>
+                <div className="flex items-center justify-between gap-4">
+                    <span className="text-xs text-blue-600 font-medium">BQ DS/CN:</span>
+                    <span className="text-sm font-bold text-blue-700">
+                        {formatDecimal(data.salesPerWorker)}
+                    </span>
+                </div>
             </div>
         );
     }
@@ -114,11 +154,11 @@ const ProductivityCharts: React.FC<ProductivityChartsProps> = ({ data }) => {
                                     height={20}
                                 />
                                 <YAxis
-                                    tickFormatter={(val) => (val / 1000000).toFixed(0)}
+                                    tickFormatter={(val) => formatDecimal(val / 1000)}
                                     tick={{ fontSize: 10, fill: '#64748b' }}
-                                    label={{ value: 'Triệu VNĐ', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: '#64748b', fontSize: 10 } }}
+                                    label={{ value: 'Doanh Số Nhập Kho (Tỷ)', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: '#64748b', fontSize: 10 } }}
                                 />
-                                <Tooltip content={<CustomTooltip formatter={formatCurrency} />} />
+                                <Tooltip content={<Chart1Tooltip />} cursor={{ fill: '#f8fafc' }} />
                                 <Bar dataKey="sales" name="Doanh số" radius={[4, 4, 0, 0]}>
                                     {data.map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={COOL_PALETTE[index % COOL_PALETTE.length]} />
@@ -126,7 +166,7 @@ const ProductivityCharts: React.FC<ProductivityChartsProps> = ({ data }) => {
                                     <LabelList
                                         dataKey="sales"
                                         position="top"
-                                        formatter={(val: number) => (val / 1000000).toFixed(0)}
+                                        formatter={(val: number) => formatDecimal(val / 1000)}
                                         style={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }}
                                     />
                                 </Bar>
@@ -153,7 +193,7 @@ const ProductivityCharts: React.FC<ProductivityChartsProps> = ({ data }) => {
                                     height={20}
                                 />
                                 <YAxis hide />
-                                <Tooltip content={<CustomTooltip formatter={formatCurrency} />} />
+                                <Tooltip content={<Chart2Tooltip />} cursor={{ fill: '#f8fafc' }} />
                                 <Bar dataKey="salesPerWorker" name="BQ DS/CN" radius={[4, 4, 0, 0]}>
                                     {data.map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={WARM_PALETTE[index % WARM_PALETTE.length]} />
@@ -161,12 +201,12 @@ const ProductivityCharts: React.FC<ProductivityChartsProps> = ({ data }) => {
                                     <LabelList
                                         dataKey="salesPerWorker"
                                         position="top"
-                                        formatter={(val: number) => (val / 1000000).toFixed(2)}
+                                        formatter={(val: number) => formatDecimal(val)}
                                         style={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }}
                                     />
                                 </Bar>
                                 <ReferenceLine y={overallAvgSalesPerWorker} stroke="#ef4444" strokeDasharray="3 3" strokeWidth={2}>
-                                    <Label value={`TB: ${(overallAvgSalesPerWorker / 1000000).toFixed(2)}`} position="right" fill="#ef4444" fontSize={10} fontWeight="bold" />
+                                    <Label value={`TB: ${formatDecimal(overallAvgSalesPerWorker)}`} position="insideTopRight" fill="#ef4444" fontSize={10} fontWeight="bold" dy={-20} dx={-10} />
                                 </ReferenceLine>
                             </BarChart>
                         </ResponsiveContainer>
@@ -240,9 +280,9 @@ const ProductivityCharts: React.FC<ProductivityChartsProps> = ({ data }) => {
                                     type="number"
                                     dataKey="sales"
                                     name="Doanh số"
-                                    tickFormatter={(val) => (val / 1000000).toFixed(0)}
+                                    tickFormatter={(val) => (val / 1000).toFixed(1)}
                                     tick={{ fontSize: 10, fill: '#64748b' }}
-                                    label={{ value: 'Doanh Số Nhập Kho (Triệu)', angle: -90, position: 'insideLeft', fontSize: 10, fill: '#64748b', style: { textAnchor: 'middle' } }}
+                                    label={{ value: 'Doanh Số Nhập Kho (Tỷ)', angle: -90, position: 'insideLeft', fontSize: 10, fill: '#64748b', style: { textAnchor: 'middle' } }}
                                 />
                                 <ZAxis type="number" dataKey="overtimeRate" range={[50, 600]} name="Tỉ lệ OT" unit="%" />
                                 <Tooltip cursor={{ strokeDasharray: '3 3' }} content={
@@ -253,7 +293,7 @@ const ProductivityCharts: React.FC<ProductivityChartsProps> = ({ data }) => {
                                                 <div className="bg-white p-3 border border-slate-200 shadow-md rounded-md text-sm">
                                                     <p className="font-bold text-slate-800 mb-1">{d.name}</p>
                                                     <p className="text-slate-600">Quy mô: <span className="font-medium text-slate-800">{formatNumber(d.avgWorkers)} CN</span></p>
-                                                    <p className="text-slate-600">Doanh số: <span className="font-medium text-slate-800">{formatCurrency(d.sales)}</span></p>
+                                                    <p className="text-slate-600">Doanh số: <span className="font-medium text-slate-800">{formatDecimal(d.sales / 1000)}</span></p>
                                                     <p className="text-slate-600">Tỉ lệ OT: <span className="font-medium text-orange-600">{formatPercent(d.overtimeRate)}</span></p>
                                                     <p className="text-blue-600 font-medium text-xs mt-1">NS: {formatCurrency(d.salesPerHour)}/giờ</p>
                                                 </div>
