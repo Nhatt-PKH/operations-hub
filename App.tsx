@@ -113,6 +113,7 @@ const YearlyPlanDataWrapper = () => {
     columns={context.yearlyPlanColumns}
     primarySearchColumn={primarySearchCol}
     exportFileNamePrefix="du_lieu_ke_hoach_nam"
+    enableAggregation={true}
   />;
 };
 
@@ -130,6 +131,7 @@ const OrderDataWrapper = () => {
       TARGET_COLUMN_NAMES.TINH_TRANG
     ]}
     exportFileNamePrefix="du_lieu_don_hang_tong"
+    enableAggregation={true}
   />;
 };
 
@@ -147,6 +149,7 @@ const InventoryDataWrapper = () => {
       TARGET_COLUMN_NAMES.XUONG
     ]}
     exportFileNamePrefix="du_lieu_nhap_kho"
+    enableAggregation={true}
   />;
 };
 
@@ -164,6 +167,7 @@ const ExportDataWrapper = () => {
       TARGET_COLUMN_NAMES.XUONG
     ]}
     exportFileNamePrefix="du_lieu_xuat_kho"
+    enableAggregation={true}
   />;
 };
 
@@ -179,6 +183,7 @@ const AttendanceDataWrapper = () => {
       'XƯỞNG CHÍNH'
     ]}
     exportFileNamePrefix="du_lieu_diem_danh"
+    enableAggregation={true}
   />;
 };
 
@@ -191,6 +196,7 @@ const TkbvDataWrapper = () => {
     columns={context.tkbvColumns}
     primarySearchColumn={{ header: 'MÃ', label: 'Tìm kiếm' }}
     exportFileNamePrefix="du_lieu_tkbv"
+    enableAggregation={true}
   />;
 };
 
@@ -203,6 +209,7 @@ const PthspDataWrapper = () => {
     columns={context.pthspColumns}
     primarySearchColumn={{ header: 'MÃ', label: 'Tìm kiếm' }}
     exportFileNamePrefix="du_lieu_pthsp"
+    enableAggregation={true}
   />;
 };
 
@@ -220,6 +227,7 @@ const AnalysisDataWrapper = () => {
       TARGET_COLUMN_NAMES.XUONG
     ]}
     exportFileNamePrefix="du_lieu_phan_tich_kh_th"
+    enableAggregation={true}
   />;
 };
 
@@ -234,6 +242,7 @@ const DataGridWrapper = ({ type }: { type: 'production' | 'material' | 'khsx' })
       filterHeaders={[TARGET_COLUMN_NAMES.CONG_TRINH, TARGET_COLUMN_NAMES.XUONG, TARGET_COLUMN_NAMES.TINH_TRANG]}
       primarySearchColumn={{ header: TARGET_COLUMN_NAMES.HEX, label: 'Mã HEX (Tìm nhiều)' }}
       exportFileNamePrefix="production_data"
+      enableAggregation={true}
     />;
   } else if (type === 'khsx') {
     return <DataGrid
@@ -244,6 +253,7 @@ const DataGridWrapper = ({ type }: { type: 'production' | 'material' | 'khsx' })
       filterHeaders={[TARGET_COLUMN_NAMES.CONG_TRINH, TARGET_COLUMN_NAMES.XUONG, TARGET_COLUMN_NAMES.TINH_TRANG]}
       primarySearchColumn={{ header: TARGET_COLUMN_NAMES.HEX, label: 'Mã HEX (Tìm nhiều)' }}
       exportFileNamePrefix="khsx_data"
+      enableAggregation={true}
     />;
   } else {
     return <DataGrid
@@ -260,6 +270,7 @@ const DataGridWrapper = ({ type }: { type: 'production' | 'material' | 'khsx' })
         TARGET_COLUMN_NAMES.NHOM_VT
       ]}
       exportFileNamePrefix="material_data"
+      enableAggregation={true}
     />;
   }
 };

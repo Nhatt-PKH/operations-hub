@@ -40,20 +40,41 @@ const formatDecimal = (value: number) => {
 };
 
 // Custom Tooltip for better readability
-const CustomTooltip = ({ active, payload, label, formatter }: any) => {
+const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
+        // Sort: Doanh số first
+        const sortedPayload = [...payload].sort((a: any, b: any) => {
+            if (a.name === 'Doanh số') return -1;
+            if (b.name === 'Doanh số') return 1;
+            return 0;
+        });
+
         return (
             <div className="bg-white p-3 border border-slate-200 shadow-md rounded-md text-sm">
                 <p className="font-bold text-slate-700 mb-2">{label}</p>
-                {payload.map((entry: any, index: number) => (
-                    <div key={index} className="flex items-center gap-2 mb-1" style={{ color: entry.color }}>
-                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }}></span>
-                        <span>{entry.name}: </span>
-                        <span className="font-medium">
-                            {formatter ? formatter(entry.value) : formatNumber(entry.value)}
-                        </span>
-                    </div>
-                ))}
+                {sortedPayload.map((entry: any, index: number) => {
+                    let valueDisplay = formatNumber(entry.value);
+
+                    if (entry.name === 'Doanh số') {
+                        valueDisplay = `${formatDecimal(entry.value / 1000)} Tỷ`;
+                    } else if (entry.name === 'Giờ Hành chính') {
+                        valueDisplay = `${formatNumber(Math.round(entry.value))} Giờ`;
+                    } else if (entry.name === 'Giờ Tăng ca') {
+                        valueDisplay = `${formatNumber(Math.round(entry.value))} Giờ`;
+                    } else if (entry.name === 'Tỉ lệ Tăng ca') {
+                        valueDisplay = `${entry.value.toFixed(1)}%`;
+                    }
+
+                    return (
+                        <div key={index} className="flex items-center gap-2 mb-1" style={{ color: entry.color }}>
+                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }}></span>
+                            <span>{entry.name}: </span>
+                            <span className="font-medium">
+                                {valueDisplay}
+                            </span>
+                        </div>
+                    );
+                })}
             </div>
         );
     }
@@ -136,15 +157,15 @@ const ProductivityCharts: React.FC<ProductivityChartsProps> = ({ data }) => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-                {/* CHART 1: Tổng Doanh Số (Bar Chart) */}
-                <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm animate-fade-in">
+                {/* CHART 1 (Moved): Cấu Trúc Giờ Công, Tỷ Lệ OT & Doanh Số (Composed Chart) */}
+                <div className="md:col-span-2 bg-white p-4 rounded-lg border border-slate-200 shadow-sm animate-fade-in">
                     <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
-                        <BarChart2 className="w-4 h-4 text-purple-500" />
-                        TỔNG DOANH SỐ NHẬP KHO
+                        <PieChart className="w-4 h-4 text-orange-500" />
+                        CẤU TRÚC GIỜ CÔNG, TỶ LỆ TĂNG CA & DOANH SỐ
                     </h3>
-                    <div className="h-[300px]">
+                    <div className="h-[350px]">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 50 }}>
+                            <ComposedChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                                 <XAxis
                                     dataKey="name"
@@ -153,24 +174,55 @@ const ProductivityCharts: React.FC<ProductivityChartsProps> = ({ data }) => {
                                     tick={{ fontSize: 10, fill: '#64748b' }}
                                     height={20}
                                 />
+                                <YAxis yAxisId="left" hide />
+                                <YAxis yAxisId="right" orientation="right" unit="%" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
                                 <YAxis
+                                    yAxisId="sales"
+                                    orientation="left"
                                     tickFormatter={(val) => formatDecimal(val / 1000)}
                                     tick={{ fontSize: 10, fill: '#64748b' }}
                                     label={{ value: 'Doanh Số Nhập Kho (Tỷ)', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: '#64748b', fontSize: 10 } }}
                                 />
-                                <Tooltip content={<Chart1Tooltip />} cursor={{ fill: '#f8fafc' }} />
-                                <Bar dataKey="sales" name="Doanh số" radius={[4, 4, 0, 0]}>
-                                    {data.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={COOL_PALETTE[index % COOL_PALETTE.length]} />
-                                    ))}
+                                <Tooltip content={<CustomTooltip />} />
+                                <Legend verticalAlign="top" height={36} />
+
+                                <Bar yAxisId="left" dataKey="totalHc" name="Giờ Hành chính" stackId="a" fill="#22c55e" barSize={40} />
+                                <Bar yAxisId="left" dataKey="totalTc" name="Giờ Tăng ca" stackId="a" fill="#F2994A" barSize={40} />
+
+                                <Line
+                                    yAxisId="sales"
+                                    type="monotone"
+                                    dataKey="sales"
+                                    name="Doanh số"
+                                    stroke="#3b82f6"
+                                    strokeWidth={3}
+                                    dot={{ r: 3, fill: '#3b82f6', stroke: '#3b82f6', strokeWidth: 1 }}
+                                >
                                     <LabelList
                                         dataKey="sales"
                                         position="top"
                                         formatter={(val: number) => formatDecimal(val / 1000)}
-                                        style={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }}
+                                        style={{ fontSize: 10, fill: '#3b82f6', fontWeight: 600 }}
                                     />
-                                </Bar>
-                            </BarChart>
+                                </Line>
+
+                                <Line
+                                    yAxisId="right"
+                                    type="monotone"
+                                    dataKey="overtimeRate"
+                                    name="Tỉ lệ Tăng ca"
+                                    stroke="#eab308"
+                                    strokeWidth={2}
+                                    dot={{ r: 3, fill: '#eab308', stroke: '#eab308', strokeWidth: 1 }}
+                                >
+                                    <LabelList
+                                        dataKey="overtimeRate"
+                                        position="top"
+                                        formatter={(val: number) => val.toFixed(0) + '%'}
+                                        style={{ fontSize: 10, fill: '#eab308', fontWeight: 'bold' }}
+                                    />
+                                </Line>
+                            </ComposedChart>
                         </ResponsiveContainer>
                     </div>
                 </div>
@@ -213,54 +265,8 @@ const ProductivityCharts: React.FC<ProductivityChartsProps> = ({ data }) => {
                     </div>
                 </div>
 
-                {/* CHART 3: Cấu Trúc Giờ Công & Tỷ Lệ OT (Composed Chart) */}
+                {/* CHART 3: Ma Trận Tương Quan (Bubble Chart) */}
                 <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm animate-fade-in" style={{ animationDelay: '0.2s' }}>
-                    <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
-                        <PieChart className="w-4 h-4 text-orange-500" />
-                        CẤU TRÚC GIỜ CÔNG & TỶ LỆ TĂNG CA (OT)
-                    </h3>
-                    <div className="h-[300px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <ComposedChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                                <XAxis
-                                    dataKey="name"
-                                    textAnchor="end"
-                                    interval={0}
-                                    tick={{ fontSize: 10, fill: '#64748b' }}
-                                    height={20}
-                                />
-                                <YAxis yAxisId="left" hide />
-                                <YAxis yAxisId="right" orientation="right" unit="%" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                                <Tooltip content={<CustomTooltip />} />
-                                <Legend verticalAlign="top" height={36} />
-
-                                <Bar yAxisId="left" dataKey="totalHc" name="Giờ HC" stackId="a" fill="#3b82f6" barSize={40} />
-                                <Bar yAxisId="left" dataKey="totalTc" name="Giờ TC" stackId="a" fill="#ef4444" barSize={40} />
-
-                                <Line
-                                    yAxisId="right"
-                                    type="monotone"
-                                    dataKey="overtimeRate"
-                                    name="% OT"
-                                    stroke="#000000"
-                                    strokeWidth={2}
-                                    dot={{ r: 3, fill: '#000000', stroke: '#000000', strokeWidth: 1 }}
-                                >
-                                    <LabelList
-                                        dataKey="overtimeRate"
-                                        position="top"
-                                        formatter={(val: number) => val.toFixed(0) + '%'}
-                                        style={{ fontSize: 10, fill: '#000000', fontWeight: 'bold' }}
-                                    />
-                                </Line>
-                            </ComposedChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-
-                {/* CHART 4: Ma Trận Tương Quan (Bubble Chart) */}
-                <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm animate-fade-in" style={{ animationDelay: '0.3s' }}>
                     <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
                         <Activity className="w-4 h-4 text-emerald-500" />
                         MA TRẬN TƯƠNG QUAN: QUY MÔ vs HIỆU QUẢ
@@ -284,7 +290,7 @@ const ProductivityCharts: React.FC<ProductivityChartsProps> = ({ data }) => {
                                     tick={{ fontSize: 10, fill: '#64748b' }}
                                     label={{ value: 'Doanh Số Nhập Kho (Tỷ)', angle: -90, position: 'insideLeft', fontSize: 10, fill: '#64748b', style: { textAnchor: 'middle' } }}
                                 />
-                                <ZAxis type="number" dataKey="overtimeRate" range={[50, 600]} name="Tỉ lệ OT" unit="%" />
+                                <ZAxis type="number" dataKey="overtimeRate" range={[50, 600]} name="Tỉ lệ Tăng ca" unit="%" />
                                 <Tooltip cursor={{ strokeDasharray: '3 3' }} content={
                                     ({ active, payload }: any) => {
                                         if (active && payload && payload.length) {
@@ -293,8 +299,8 @@ const ProductivityCharts: React.FC<ProductivityChartsProps> = ({ data }) => {
                                                 <div className="bg-white p-3 border border-slate-200 shadow-md rounded-md text-sm">
                                                     <p className="font-bold text-slate-800 mb-1">{d.name}</p>
                                                     <p className="text-slate-600">Quy mô: <span className="font-medium text-slate-800">{formatNumber(d.avgWorkers)} CN</span></p>
-                                                    <p className="text-slate-600">Doanh số: <span className="font-medium text-slate-800">{formatDecimal(d.sales / 1000)}</span></p>
-                                                    <p className="text-slate-600">Tỉ lệ OT: <span className="font-medium text-orange-600">{formatPercent(d.overtimeRate)}</span></p>
+                                                    <p className="text-slate-600">Doanh số: <span className="font-medium text-slate-800">{formatDecimal(d.sales / 1000)} Tỷ</span></p>
+                                                    <p className="text-slate-600">Tỉ lệ Tăng ca: <span className="font-medium text-orange-600">{formatPercent(d.overtimeRate)}</span></p>
                                                     <p className="text-blue-600 font-medium text-xs mt-1">NS: {formatCurrency(d.salesPerHour)}/giờ</p>
                                                 </div>
                                             );
@@ -312,7 +318,7 @@ const ProductivityCharts: React.FC<ProductivityChartsProps> = ({ data }) => {
                         </ResponsiveContainer>
                     </div>
                     <p className="text-[10px] text-slate-400 mt-2 text-center italic">
-                        *Bóng to = Tỉ lệ OT cao &bull; Màu nóng (Cam/Đỏ) = Năng suất giờ cao
+                        *Bóng to = Tỉ lệ Tăng ca cao &bull; Màu nóng (Cam/Đỏ) = Năng suất giờ cao
                     </p>
                 </div>
 

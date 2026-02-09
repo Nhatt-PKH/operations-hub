@@ -91,7 +91,8 @@ export const TARGET_COLUMN_NAMES = {
   // Attendance Columns
   SO_LUONG_CONG_NHAN: 'SỐ LƯỢNG CÔNG NHÂN',
   GIO_CONG_HC: 'GIỜ CÔNG HÀNH CHÍNH',
-  GIO_CONG_TC: 'GIỜ CÔNG TĂNG CA'
+  GIO_CONG_TC: 'GIỜ CÔNG TĂNG CA',
+  DINH_BIEN: 'ĐỊNH BIÊN'
 };
 
 export type DataRow = Record<string, any>;

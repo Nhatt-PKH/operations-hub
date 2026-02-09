@@ -209,6 +209,16 @@ const MATERIAL_LIST_COLUMNS = [
 
 // --- REUSABLE COMPONENTS ---
 
+const CheckpointTriangle = (props: any) => {
+  const { viewBox } = props;
+  const { x, y } = viewBox;
+  // Right-pointing triangle: |> (Larger, Moved up 10px)
+  // Vertical side on the dashed line (x)
+  return (
+    <polygon points={`${x},${y - 10} ${x},${y + 6} ${x + 12},${y - 2}`} fill="#ef4444" />
+  );
+};
+
 const CompactStatCard = ({
   title,
   value,
@@ -839,6 +849,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const attNamKey = findColumnKey(attendanceColumns, TARGET_COLUMN_NAMES.NAM);
   const attThangKey = findColumnKey(attendanceColumns, TARGET_COLUMN_NAMES.THANG);
   const attNgayKey = findColumnKey(attendanceColumns, TARGET_COLUMN_NAMES.NGAY);
+  const attDinhBienKey = findColumnKey(attendanceColumns, TARGET_COLUMN_NAMES.DINH_BIEN);
 
 
   const [filters, setFilters] = useState<{
@@ -1649,6 +1660,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     const attendanceMap = new Map<string, {
       name: string;
       totalSoLuongCn: number;
+      totalDinhBien: number;
       entryCount: number;
       gioCongHc: number;
       gioCongTc: number;
@@ -1687,10 +1699,13 @@ const Dashboard: React.FC<DashboardProps> = ({
         const gioTc = attGioCongTcKey ? parseNumber(row[attGioCongTcKey]) : 0;
 
         if (!attendanceMap.has(xuong)) {
-          attendanceMap.set(xuong, { name: xuong, totalSoLuongCn: 0, entryCount: 0, gioCongHc: 0, gioCongTc: 0 });
+          attendanceMap.set(xuong, { name: xuong, totalSoLuongCn: 0, totalDinhBien: 0, entryCount: 0, gioCongHc: 0, gioCongTc: 0 });
         }
         const entry = attendanceMap.get(xuong)!;
         entry.totalSoLuongCn += slCn;
+        if (attDinhBienKey) {
+          entry.totalDinhBien += parseNumber(row[attDinhBienKey]);
+        }
         entry.entryCount += 1;
         entry.gioCongHc += gioHc;
         entry.gioCongTc += gioTc;
@@ -1713,11 +1728,12 @@ const Dashboard: React.FC<DashboardProps> = ({
     const result: any[] = [];
 
     allKeys.forEach(xuong => {
-      const att = attendanceMap.get(xuong) || { name: xuong, totalSoLuongCn: 0, entryCount: 0, gioCongHc: 0, gioCongTc: 0 };
+      const att = attendanceMap.get(xuong) || { name: xuong, totalSoLuongCn: 0, totalDinhBien: 0, entryCount: 0, gioCongHc: 0, gioCongTc: 0 };
       const sales = inventoryMap.get(xuong) || 0;
 
       // 1. Worker Count as Average
       const avgWorkers = att.entryCount > 0 ? att.totalSoLuongCn / att.entryCount : 0;
+      const avgDinhBien = att.entryCount > 0 ? att.totalDinhBien / att.entryCount : 0;
       const totalHours = att.gioCongHc + att.gioCongTc;
 
       // 3. Derived Metrics
@@ -1735,6 +1751,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       result.push({
         name: xuong,
         avgWorkers,
+        avgDinhBien,
         totalHc: att.gioCongHc,
         totalTc: att.gioCongTc,
         totalHours,
@@ -1749,7 +1766,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     return result.sort((a, b) => a.name.localeCompare(b.name));
   }, [
     attendanceData, filteredInventoryData, viewMode, unifiedTimeFilters.tuan, unifiedTimeFilters.nam, unifiedTimeFilters.thang, unifiedTimeFilters.ngay,
-    attXuongKey, attTuanKey, attNamKey, attThangKey, attNgayKey, attSoLuongCnKey, attGioCongHcKey, attGioCongTcKey,
+    attXuongKey, attTuanKey, attNamKey, attThangKey, attNgayKey, attSoLuongCnKey, attGioCongHcKey, attGioCongTcKey, attDinhBienKey,
     invXuongKey, invThanhTienKey
   ]);
 
@@ -2265,22 +2282,20 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <p className="text-xs text-slate-500">Tiến độ thực hiện (Nhập kho) so với chỉ tiêu kế hoạch năm</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 bg-emerald-50/50 px-3 py-1.5 rounded-lg border border-emerald-100">
-              <span className="text-xs text-slate-500 font-medium">Chỉ tiêu Năm:</span>
-              <span className="text-sm font-bold text-slate-700">{formatNumber(targetRevenue2026)} Tỷ</span>
-            </div>
+
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
             {/* Left Column: Progress Bar & Cards */}
-            <div className="lg:col-span-1 flex flex-col gap-6">
+            {/* Left Column: Progress Bar & Cards */}
+            <div className="lg:col-span-1 flex flex-col gap-6 h-full">
 
               {/* 1. Progress Bar (Moved Here) */}
               <div className="w-full">
                 <div className="flex justify-between items-end mb-2">
                   <p className="text-xs font-bold text-slate-500 uppercase">Tiến độ tổng thể</p>
-                  <span className="text-[10px] text-slate-400">Mục tiêu: {formatDecimal(targetRevenue2026)} Tỷ</span>
+                  <span className="text-[10px] text-slate-400"></span>
                 </div>
                 <div className="h-[110px] w-full bg-slate-50 rounded-lg border border-slate-100 p-2">
                   <ResponsiveContainer width="100%" height="100%">
@@ -2301,29 +2316,36 @@ const Dashboard: React.FC<DashboardProps> = ({
                         }}
                         contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}
                       />
-                      <Bar dataKey="thucHien" stackId="a" fill="#10b981" radius={[4, 0, 0, 4]}>
+                      <Bar dataKey="thucHien" stackId="a" fill="#3b82f6" radius={[4, 0, 0, 4]}>
                         <LabelList dataKey="thucHien" position="center" fill="white" fontSize={10} fontWeight="bold" formatter={(val: number) => val > 0 ? formatDecimal(val) : ''} />
                       </Bar>
                       <Bar dataKey="conLai" stackId="a" fill="#e2e8f0" radius={[0, 4, 4, 0]} />
 
+                      {/* Checkpoint Flags (Triangles) */}
+                      <ReferenceLine x={quarterlyTargets.q1} stroke="none" label={(props: any) => <CheckpointTriangle {...props} />} />
+                      <ReferenceLine x={quarterlyTargets.q2} stroke="none" label={(props: any) => <CheckpointTriangle {...props} />} />
+                      <ReferenceLine x={quarterlyTargets.q3} stroke="none" label={(props: any) => <CheckpointTriangle {...props} />} />
+                      <ReferenceLine x={quarterlyTargets.q4} stroke="none" label={(props: any) => <CheckpointTriangle {...props} />} />
+
+                      {/* Quarter Reference Lines & Labels */}
                       {quarterlyTargets.q1 > 0 && (
                         <ReferenceLine x={quarterlyTargets.q1} stroke="#ea580c" strokeDasharray="3 3">
-                          <Label value={`Quý I: ${formatDecimal(quarterlyTargets.q1)}`} position="top" fill="#c2410c" fontSize={9} fontWeight="bold" />
+                          <Label value={`Quý I: ${formatDecimal(quarterlyTargets.q1)}`} position="insideBottom" fill="#c2410c" fontSize={12} fontWeight="bold" dy={20} />
                         </ReferenceLine>
                       )}
                       {quarterlyTargets.q2 > 0 && (
                         <ReferenceLine x={quarterlyTargets.q2} stroke="#0891b2" strokeDasharray="3 3">
-                          <Label value={`Quý II: ${formatDecimal(quarterlyTargets.q2)}`} position="insideBottomRight" fill="#0e7490" fontSize={9} fontWeight="bold" />
+                          <Label value={`Quý II: ${formatDecimal(quarterlyTargets.q2)}`} position="insideBottom" fill="#0e7490" fontSize={12} fontWeight="bold" dy={20} />
                         </ReferenceLine>
                       )}
                       {quarterlyTargets.q3 > 0 && (
                         <ReferenceLine x={quarterlyTargets.q3} stroke="#7c3aed" strokeDasharray="3 3">
-                          <Label value={`Quý III: ${formatDecimal(quarterlyTargets.q3)}`} position="top" fill="#6d28d9" fontSize={9} fontWeight="bold" />
+                          <Label value={`Quý III: ${formatDecimal(quarterlyTargets.q3)}`} position="insideBottom" fill="#6d28d9" fontSize={12} fontWeight="bold" dy={20} />
                         </ReferenceLine>
                       )}
                       {quarterlyTargets.q4 > 0 && (
                         <ReferenceLine x={quarterlyTargets.q4} stroke="#dc2626" strokeDasharray="3 3">
-                          <Label value={`Quý IV: ${formatDecimal(quarterlyTargets.q4)}`} position="insideBottomRight" fill="#b91c1c" fontSize={9} fontWeight="bold" />
+                          <Label value={`Quý IV: ${formatDecimal(quarterlyTargets.q4)}`} position="insideBottom" fill="#b91c1c" fontSize={12} fontWeight="bold" dy={20} />
                         </ReferenceLine>
                       )}
 
@@ -2332,32 +2354,52 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </div>
               </div>
 
-              {/* 2. Metric Cards */}
-              <div className="flex flex-col gap-4">
-                <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-100">
-                  <p className="text-xs font-bold text-emerald-800 uppercase mb-1">Thực hiện Lũy kế (Nhập kho)</p>
-                  <div className="flex items-baseline gap-2">
-                    <h4 className="text-3xl font-extrabold text-emerald-600">{formatDecimal(factoryRevenueStats.actual)}</h4>
-                    <span className="text-sm font-medium text-emerald-500">Tỷ</span>
+              {/* 2. Metric Cards - Refactored to Horizontal Row with "Overview Report" Styles */}
+              <div className="grid grid-cols-3 gap-4 flex-1">
+                {/* Card 1: Kế hoạch Năm - Green Theme */}
+                <div className="p-4 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl border border-emerald-100 shadow-sm flex flex-col justify-between relative overflow-hidden group hover:shadow-md transition-shadow h-full">
+                  <div className="flex items-center gap-2 mb-2 z-10">
+                    <div className="p-1.5 bg-emerald-100 rounded-lg text-emerald-600 shadow-sm group-hover:scale-110 transition-transform"><Target size={16} /></div>
+                    <p className="text-[10px] font-bold text-emerald-800 opacity-80 uppercase tracking-wide">Kế hoạch Năm</p>
+                  </div>
+                  <div className="z-10 flex flex-col items-start">
+                    <div className="flex items-baseline gap-1">
+                      <h4 className="text-4xl font-extrabold text-emerald-600 tracking-tight">{formatDecimal(targetRevenue2026)}</h4>
+                      <span className="text-[10px] font-medium text-emerald-500">Tỷ</span>
+                    </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                    <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Kế hoạch Năm</p>
+                {/* Card 2: Thực hiện Lũy kế - Blue Theme */}
+                <div className="p-4 bg-gradient-to-br from-blue-50 to-sky-50 rounded-xl border border-blue-100 shadow-sm flex flex-col justify-between relative overflow-hidden group hover:shadow-md transition-shadow h-full">
+                  <div className="flex items-center gap-2 mb-2 z-10">
+                    <div className="p-1.5 bg-blue-100 rounded-lg text-blue-600 shadow-sm group-hover:scale-110 transition-transform"><CheckCircle size={16} /></div>
+                    <p className="text-[10px] font-bold text-blue-800 opacity-80 uppercase tracking-wide">Thực hiện Lũy kế</p>
+                  </div>
+                  <div className="z-10 flex flex-col items-start">
                     <div className="flex items-baseline gap-1">
-                      <h4 className="text-xl font-bold text-slate-700">{formatDecimal(targetRevenue2026)}</h4>
-                      <span className="text-xs text-slate-400">Tỷ</span>
+                      <h4 className="text-4xl font-extrabold text-blue-600 tracking-tight">{formatDecimal(factoryRevenueStats.actual)}</h4>
+                      <span className="text-[10px] font-medium text-blue-500">Tỷ</span>
                     </div>
                   </div>
-                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                    <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Tỷ lệ Đạt</p>
+                </div>
+
+                {/* Card 3: Tỷ lệ Đạt - Violet Theme */}
+                <div className="p-4 bg-gradient-to-br from-violet-50 to-fuchsia-50 rounded-xl border border-violet-100 shadow-sm flex flex-col justify-between relative overflow-hidden group hover:shadow-md transition-shadow h-full">
+                  <div className="flex items-center gap-2 mb-2 z-10">
+                    <div className="p-1.5 bg-violet-100 rounded-lg text-violet-600 shadow-sm group-hover:scale-110 transition-transform"><Activity size={16} /></div>
+                    <p className="text-[10px] font-bold text-violet-800 opacity-80 uppercase tracking-wide">Tỷ lệ Đạt</p>
+                  </div>
+                  <div className="z-10 flex flex-col items-start">
                     <div className="flex items-baseline gap-1">
-                      <h4 className={`text-xl font-bold ${factoryRevenueStats.percent >= 100 ? 'text-emerald-600' : factoryRevenueStats.percent >= 80 ? 'text-teal-600' : factoryRevenueStats.percent >= 50 ? 'text-amber-600' : 'text-red-500'}`}>{formatDecimal(factoryRevenueStats.percent)}%</h4>
+                      <h4 className={`text-4xl font-extrabold tracking-tight ${factoryRevenueStats.percent >= 100 ? 'text-emerald-600' : factoryRevenueStats.percent >= 80 ? 'text-violet-600' : 'text-amber-600'}`}>
+                        {formatDecimal(factoryRevenueStats.percent)}%
+                      </h4>
                     </div>
                   </div>
                 </div>
               </div>
+
 
             </div>
 
@@ -3162,27 +3204,29 @@ const Dashboard: React.FC<DashboardProps> = ({
                       <thead className="bg-purple-50 text-slate-700 font-semibold uppercase">
                         <tr>
                           <th className="px-4 py-3 text-left border-b border-purple-200 sticky left-0 bg-purple-50 z-10 w-[200px]">Xưởng Chính</th>
-                          <th className="px-2 py-3 border-b border-purple-200 text-slate-600" title="Trung bình cộng">TB Số Lượng CN</th>
-                          <th className="px-2 py-3 border-b border-purple-200 text-slate-600">Tổng Giờ HC</th>
-                          <th className="px-2 py-3 border-b border-purple-200 text-slate-600">Tổng Giờ TC</th>
-                          <th className="px-2 py-3 border-b border-purple-200 text-purple-800 bg-purple-100/30">Doanh Số Nhập Kho</th>
-                          <th className="px-2 py-3 border-b border-purple-200 text-blue-700">BQ DS / 1 Giờ</th>
-                          <th className="px-2 py-3 border-b border-purple-200 text-blue-700">BQ DS / 1 CN</th>
-                          <th className="px-2 py-3 border-b border-purple-200 text-orange-700">Tỉ lệ Giờ TC (%)</th>
-                          <th className="px-2 py-3 border-b border-purple-200 text-orange-700">BQ Giờ Công / 1 CN</th>
+                          <th className="px-2 py-3 border-b border-purple-200 text-slate-600" title="Định biên">ĐỊNH BIÊN</th>
+                          <th className="px-2 py-3 border-b border-purple-200 text-slate-600" title="Trung bình cộng">TRUNG BÌNH SỐ LƯỢNG CÔNG NHÂN</th>
+                          <th className="px-2 py-3 border-b border-purple-200 text-slate-600">TỔNG GIỜ CÔNG HÀNH CHÍNH</th>
+                          <th className="px-2 py-3 border-b border-purple-200 text-slate-600">TỔNG GIỜ TĂNG CA</th>
+                          <th className="px-2 py-3 border-b border-purple-200 text-orange-700">TỶ LỆ GIỜ TĂNG CA (%)</th>
+                          <th className="px-2 py-3 border-b border-purple-200 text-purple-800 bg-purple-100/30">DOANH SỐ NHẬP KHO</th>
+                          <th className="px-2 py-3 border-b border-purple-200 text-blue-700">BÌNH QUÂN DOANH SỐ / 1 GIỜ</th>
+                          <th className="px-2 py-3 border-b border-purple-200 text-blue-700">BÌNH QUÂN DOANH SỐ / 1 CÔNG NHÂN</th>
+                          <th className="px-2 py-3 border-b border-purple-200 text-orange-700">BÌNH QUÂN GIỜ CÔNG / 1 CÔNG NHÂN</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {productivityAnalysisData.map((item, idx) => (
                           <tr key={idx} className="hover:bg-slate-50 transition-colors">
                             <td className="px-4 py-3 text-left font-medium text-slate-700 sticky left-0 bg-white z-10 border-r border-slate-100 drop-shadow-sm">{item.name}</td>
+                            <td className="px-2 py-3 text-slate-700">{formatDecimal(item.avgDinhBien)}</td>
                             <td className="px-2 py-3 text-slate-700">{formatDecimal(item.avgWorkers)}</td>
                             <td className="px-2 py-3 text-slate-600">{formatDecimal(item.totalHc)}</td>
                             <td className="px-2 py-3 text-slate-600">{formatDecimal(item.totalTc)}</td>
+                            <td className="px-2 py-3 text-orange-600">{formatDecimal(item.overtimeRate)}%</td>
                             <td className="px-2 py-3 text-purple-700 font-bold bg-purple-50/20">{formatDecimal(item.sales)}</td>
                             <td className="px-2 py-3 text-blue-600 font-medium">{formatDecimal(item.salesPerHour)}</td>
                             <td className="px-2 py-3 text-blue-600 font-medium">{formatDecimal(item.salesPerWorker)}</td>
-                            <td className="px-2 py-3 text-orange-600">{formatDecimal(item.overtimeRate)}%</td>
                             <td className="px-2 py-3 text-orange-600">{formatDecimal(item.hoursPerWorker)}</td>
                           </tr>
                         ))}
@@ -3191,12 +3235,13 @@ const Dashboard: React.FC<DashboardProps> = ({
                         <tr>
                           <td className="px-4 py-3 text-left sticky left-0 bg-purple-100 z-10 w-[200px]">TỔNG CỘNG / BÌNH QUÂN</td>
                           <td className="px-2 py-3">
+                            {formatDecimal(productivityAnalysisData.reduce((sum, item) => sum + item.avgDinhBien, 0))}
+                          </td>
+                          <td className="px-2 py-3">
                             {formatDecimal(productivityAnalysisData.reduce((sum, item) => sum + item.avgWorkers, 0))}
                           </td>
                           <td className="px-2 py-3">{formatDecimal(productivityAnalysisData.reduce((sum, item) => sum + item.totalHc, 0))}</td>
                           <td className="px-2 py-3">{formatDecimal(productivityAnalysisData.reduce((sum, item) => sum + item.totalTc, 0))}</td>
-                          <td className="px-2 py-3 text-purple-900">{formatDecimal(productivityAnalysisData.reduce((sum, item) => sum + item.sales, 0))}</td>
-
                           {(() => {
                             const totalSales = productivityAnalysisData.reduce((sum, item) => sum + item.sales, 0);
                             const totalAvgWorkers = productivityAnalysisData.reduce((sum, item) => sum + item.avgWorkers, 0);
@@ -3211,9 +3256,10 @@ const Dashboard: React.FC<DashboardProps> = ({
 
                             return (
                               <>
+                                <td className="px-2 py-3 text-orange-800">{formatDecimal(avgOvertimeRate)}%</td>
+                                <td className="px-2 py-3 text-purple-900">{formatDecimal(totalSales)}</td>
                                 <td className="px-2 py-3 text-blue-800">{formatDecimal(avgSalesPerHour)}</td>
                                 <td className="px-2 py-3 text-blue-800">{formatDecimal(avgSalesPerWorker)}</td>
-                                <td className="px-2 py-3 text-orange-800">{formatDecimal(avgOvertimeRate)}%</td>
                                 <td className="px-2 py-3 text-orange-800">{formatDecimal(avgHoursPerWorker)}</td>
                               </>
                             );
