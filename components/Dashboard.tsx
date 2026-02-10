@@ -2357,45 +2357,39 @@ const Dashboard: React.FC<DashboardProps> = ({
               {/* 2. Metric Cards - Refactored to Horizontal Row with "Overview Report" Styles */}
               <div className="grid grid-cols-3 gap-4 flex-1">
                 {/* Card 1: Kế hoạch Năm - Green Theme */}
-                <div className="p-4 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl border border-emerald-100 shadow-sm flex flex-col justify-between relative overflow-hidden group hover:shadow-md transition-shadow h-full">
-                  <div className="flex items-center gap-2 mb-2 z-10">
-                    <div className="p-1.5 bg-emerald-100 rounded-lg text-emerald-600 shadow-sm group-hover:scale-110 transition-transform"><Target size={16} /></div>
-                    <p className="text-[10px] font-bold text-emerald-800 opacity-80 uppercase tracking-wide">Kế hoạch Năm</p>
+                <div className="p-2 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-lg border border-emerald-100 shadow-sm flex flex-col justify-center relative overflow-hidden group hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-1.5 mb-0.5 z-10">
+                    <div className="p-1 bg-emerald-100 rounded text-emerald-600 shadow-sm"><Target size={18} /></div>
+                    <p className="text-xs font-bold text-emerald-800 opacity-80 uppercase tracking-wide">Kế hoạch Năm</p>
                   </div>
-                  <div className="z-10 flex flex-col items-start">
-                    <div className="flex items-baseline gap-1">
-                      <h4 className="text-4xl font-extrabold text-emerald-600 tracking-tight">{formatDecimal(targetRevenue2026)}</h4>
-                      <span className="text-[10px] font-medium text-emerald-500">Tỷ</span>
-                    </div>
+                  <div className="z-10 flex items-baseline gap-1 pl-0.5">
+                    <h4 className="text-3xl font-extrabold text-emerald-600 tracking-tight">{formatDecimal(targetRevenue2026)}</h4>
+                    <span className="text-xs font-medium text-emerald-500">Tỷ</span>
                   </div>
                 </div>
 
                 {/* Card 2: Thực hiện Lũy kế - Blue Theme */}
-                <div className="p-4 bg-gradient-to-br from-blue-50 to-sky-50 rounded-xl border border-blue-100 shadow-sm flex flex-col justify-between relative overflow-hidden group hover:shadow-md transition-shadow h-full">
-                  <div className="flex items-center gap-2 mb-2 z-10">
-                    <div className="p-1.5 bg-blue-100 rounded-lg text-blue-600 shadow-sm group-hover:scale-110 transition-transform"><CheckCircle size={16} /></div>
-                    <p className="text-[10px] font-bold text-blue-800 opacity-80 uppercase tracking-wide">Thực hiện Lũy kế</p>
+                <div className="p-2 bg-gradient-to-br from-blue-50 to-sky-50 rounded-lg border border-blue-100 shadow-sm flex flex-col justify-center relative overflow-hidden group hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-1.5 mb-0.5 z-10">
+                    <div className="p-1 bg-blue-100 rounded text-blue-600 shadow-sm"><CheckCircle size={18} /></div>
+                    <p className="text-xs font-bold text-blue-800 opacity-80 uppercase tracking-wide">Thực hiện Lũy kế</p>
                   </div>
-                  <div className="z-10 flex flex-col items-start">
-                    <div className="flex items-baseline gap-1">
-                      <h4 className="text-4xl font-extrabold text-blue-600 tracking-tight">{formatDecimal(factoryRevenueStats.actual)}</h4>
-                      <span className="text-[10px] font-medium text-blue-500">Tỷ</span>
-                    </div>
+                  <div className="z-10 flex items-baseline gap-1 pl-0.5">
+                    <h4 className="text-3xl font-extrabold text-blue-600 tracking-tight">{formatDecimal(factoryRevenueStats.actual)}</h4>
+                    <span className="text-xs font-medium text-blue-500">Tỷ</span>
                   </div>
                 </div>
 
                 {/* Card 3: Tỷ lệ Đạt - Violet Theme */}
-                <div className="p-4 bg-gradient-to-br from-violet-50 to-fuchsia-50 rounded-xl border border-violet-100 shadow-sm flex flex-col justify-between relative overflow-hidden group hover:shadow-md transition-shadow h-full">
-                  <div className="flex items-center gap-2 mb-2 z-10">
-                    <div className="p-1.5 bg-violet-100 rounded-lg text-violet-600 shadow-sm group-hover:scale-110 transition-transform"><Activity size={16} /></div>
-                    <p className="text-[10px] font-bold text-violet-800 opacity-80 uppercase tracking-wide">Tỷ lệ Đạt</p>
+                <div className="p-2 bg-gradient-to-br from-violet-50 to-fuchsia-50 rounded-lg border border-violet-100 shadow-sm flex flex-col justify-center relative overflow-hidden group hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-1.5 mb-0.5 z-10">
+                    <div className="p-1 bg-violet-100 rounded text-violet-600 shadow-sm"><Activity size={18} /></div>
+                    <p className="text-xs font-bold text-violet-800 opacity-80 uppercase tracking-wide">Tỷ lệ Đạt</p>
                   </div>
-                  <div className="z-10 flex flex-col items-start">
-                    <div className="flex items-baseline gap-1">
-                      <h4 className={`text-4xl font-extrabold tracking-tight ${factoryRevenueStats.percent >= 100 ? 'text-emerald-600' : factoryRevenueStats.percent >= 80 ? 'text-violet-600' : 'text-amber-600'}`}>
-                        {formatDecimal(factoryRevenueStats.percent)}%
-                      </h4>
-                    </div>
+                  <div className="z-10 flex items-baseline gap-1 pl-0.5">
+                    <h4 className={`text-3xl font-extrabold tracking-tight ${factoryRevenueStats.percent >= 100 ? 'text-emerald-600' : factoryRevenueStats.percent >= 80 ? 'text-violet-600' : 'text-amber-600'}`}>
+                      {formatDecimal(factoryRevenueStats.percent)}%
+                    </h4>
                   </div>
                 </div>
               </div>

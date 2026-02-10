@@ -56,7 +56,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
                     let valueDisplay = formatNumber(entry.value);
 
                     if (entry.name === 'Doanh số') {
-                        valueDisplay = `${formatDecimal(entry.value / 1000)} Tỷ`;
+                        valueDisplay = `${formatDecimal(entry.value)} Triệu`;
                     } else if (entry.name === 'Giờ Hành chính') {
                         valueDisplay = `${formatNumber(Math.round(entry.value))} Giờ`;
                     } else if (entry.name === 'Giờ Tăng ca') {
@@ -117,6 +117,41 @@ const Chart2Tooltip = ({ active, payload, label }: any) => {
     return null;
 };
 
+// Custom Label for Sales Line (White background for readability)
+const CustomLineLabel = (props: any) => {
+    const { x, y, value } = props;
+    const text = formatDecimal(value);
+
+    // Adjust y to position label above the point
+    // Recharts passes x, y as the coordinate of the point.
+    const labelY = y - 10;
+
+    return (
+        <g>
+            <rect
+                x={x - 18}
+                y={labelY - 12}
+                width={36}
+                height={16}
+                fill="white"
+                fillOpacity={0.7}
+                rx={4}
+            />
+            <text
+                x={x}
+                y={labelY}
+                fill="#3b82f6"
+                fontSize={10}
+                fontWeight={600}
+                textAnchor="middle"
+                dominantBaseline="middle"
+            >
+                {text}
+            </text>
+        </g>
+    );
+};
+
 const ProductivityCharts: React.FC<ProductivityChartsProps> = ({ data }) => {
     if (!data || data.length === 0) return null;
 
@@ -174,15 +209,13 @@ const ProductivityCharts: React.FC<ProductivityChartsProps> = ({ data }) => {
                                     tick={{ fontSize: 10, fill: '#64748b' }}
                                     height={20}
                                 />
-                                <YAxis yAxisId="left" hide />
-                                <YAxis yAxisId="right" orientation="right" unit="%" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
                                 <YAxis
-                                    yAxisId="sales"
+                                    yAxisId="left"
                                     orientation="left"
-                                    tickFormatter={(val) => formatDecimal(val / 1000)}
                                     tick={{ fontSize: 10, fill: '#64748b' }}
-                                    label={{ value: 'Doanh Số Nhập Kho (Tỷ)', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: '#64748b', fontSize: 10 } }}
+                                    label={{ value: 'Giờ công & Doanh số (Triệu)', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: '#64748b', fontSize: 10 } }}
                                 />
+                                <YAxis yAxisId="right" orientation="right" unit="%" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
                                 <Tooltip content={<CustomTooltip />} />
                                 <Legend verticalAlign="top" height={36} />
 
@@ -190,7 +223,7 @@ const ProductivityCharts: React.FC<ProductivityChartsProps> = ({ data }) => {
                                 <Bar yAxisId="left" dataKey="totalTc" name="Giờ Tăng ca" stackId="a" fill="#F2994A" barSize={40} />
 
                                 <Line
-                                    yAxisId="sales"
+                                    yAxisId="left"
                                     type="monotone"
                                     dataKey="sales"
                                     name="Doanh số"
@@ -201,8 +234,7 @@ const ProductivityCharts: React.FC<ProductivityChartsProps> = ({ data }) => {
                                     <LabelList
                                         dataKey="sales"
                                         position="top"
-                                        formatter={(val: number) => formatDecimal(val / 1000)}
-                                        style={{ fontSize: 10, fill: '#3b82f6', fontWeight: 600 }}
+                                        content={<CustomLineLabel />}
                                     />
                                 </Line>
 
@@ -258,7 +290,7 @@ const ProductivityCharts: React.FC<ProductivityChartsProps> = ({ data }) => {
                                     />
                                 </Bar>
                                 <ReferenceLine y={overallAvgSalesPerWorker} stroke="#ef4444" strokeDasharray="3 3" strokeWidth={2}>
-                                    <Label value={`TB: ${formatDecimal(overallAvgSalesPerWorker)}`} position="insideTopRight" fill="#ef4444" fontSize={10} fontWeight="bold" dy={-20} dx={-10} />
+                                    <Label value={`TB AATN: ${formatDecimal(overallAvgSalesPerWorker)} Triệu`} position="insideTopRight" fill="#ef4444" fontSize={10} fontWeight="bold" dy={-20} dx={-10} />
                                 </ReferenceLine>
                             </BarChart>
                         </ResponsiveContainer>
