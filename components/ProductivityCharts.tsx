@@ -5,6 +5,7 @@ import {
     ComposedChart, Line, ScatterChart, Scatter, ZAxis, ReferenceLine, LabelList, Cell, Label
 } from 'recharts';
 import { Activity, BarChart2, PieChart, TrendingUp } from 'lucide-react';
+import { getWeekRange2026 } from '../utils/dateUtils';
 
 interface ProductivityData {
     name: string;
@@ -21,6 +22,13 @@ interface ProductivityData {
 
 interface ProductivityChartsProps {
     data: ProductivityData[];
+    viewMode?: 'WEEK' | 'MONTH';
+    filters?: {
+        nam: string[];
+        thang: string[];
+        ngay: string[];
+        tuan: string[];
+    };
 }
 
 const formatCurrency = (value: number) => {
@@ -152,7 +160,7 @@ const CustomLineLabel = (props: any) => {
     );
 };
 
-const ProductivityCharts: React.FC<ProductivityChartsProps> = ({ data }) => {
+const ProductivityCharts: React.FC<ProductivityChartsProps> = ({ data, viewMode = 'MONTH', filters }) => {
     if (!data || data.length === 0) return null;
 
     // Color Palettes
@@ -181,13 +189,63 @@ const ProductivityCharts: React.FC<ProductivityChartsProps> = ({ data }) => {
         return `rgb(${r}, ${g}, ${b})`;
     };
 
+    const getDynamicDescription = () => {
+        if (!filters) return '';
+
+        const { nam, thang, ngay, tuan } = filters;
+        const currentYear = nam[0] || new Date().getFullYear().toString();
+
+        if (viewMode === 'MONTH') {
+            const currentMonth = thang[0] || (new Date().getMonth() + 1).toString();
+            return `Thống kê Tháng ${currentMonth.padStart(2, '0')}/${currentYear}`;
+        }
+
+        if (viewMode === 'WEEK') {
+            const currentWeek = tuan[0];
+            if (!currentWeek) return '';
+
+            const weekNum = parseInt(currentWeek);
+            const { start, end } = getWeekRange2026(weekNum);
+
+            const fmtDate = (d: Date) => `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}`;
+            const fmtFullDate = (d: Date) => `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+
+            if (ngay.length > 0) {
+                if (ngay.length === 1) {
+                    // Single Day
+                    const day = parseInt(ngay[0]);
+                    const month = parseInt(thang[0]) || (new Date().getMonth() + 1);
+                    return `Thống kê ngày ${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${currentYear} (Tuần ${currentWeek.padStart(2, '0')})`;
+                } else {
+                    // Multiple Days
+                    // Assuming days are sorted or we find min/max
+                    const days = ngay.map(d => parseInt(d)).sort((a, b) => a - b);
+                    const minDay = days[0];
+                    const maxDay = days[days.length - 1];
+                    const month = parseInt(thang[0]) || (new Date().getMonth() + 1);
+                    return `Thống kê Từ ngày ${minDay.toString().padStart(2, '0')} đến ngày ${maxDay.toString().padStart(2, '0')} /${month.toString().padStart(2, '0')}/${currentYear} (Tuần ${currentWeek.padStart(2, '0')})`;
+                }
+            }
+
+            // Full Week
+            return `Thống kê Từ ngày ${fmtDate(start)} đến ngày ${fmtFullDate(end)} (Tuần ${currentWeek.padStart(2, '0')})`;
+        }
+
+        return '';
+    };
+
     return (
         <div className="w-full mt-8 p-6 bg-slate-50 rounded-xl border border-slate-200">
             <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-bold text-slate-800 uppercase flex items-center gap-2">
-                    <Activity className="w-5 h-5 text-purple-600" />
-                    DASHBOARD HIỆU SUẤT VẬN HÀNH
-                </h2>
+                <div>
+                    <h2 className="text-lg font-bold text-slate-800 uppercase flex items-center gap-2">
+                        <Activity className="w-5 h-5 text-purple-600" />
+                        DASHBOARD HIỆU SUẤT VẬN HÀNH
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-1 italic pl-7">
+                        {getDynamicDescription()}
+                    </p>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -8,6 +8,7 @@ import {
 import { CheckCircle, Filter, ChevronDown, XCircle as CloseIcon, Table as TableIcon, Layers, LayoutList, Calculator, Hash, Activity, Package, MinusCircle, Box, ChevronLeft, ChevronRight, CheckSquare, Square, Calendar, DollarSign, ListFilter, Import, BarChart2, PieChart, TrendingUp, AlertCircle, ShoppingCart, FileText, ClipboardList, Clock, AlertTriangle, Download, Eye, X, Building2, ArrowUp, ArrowDown, ArrowUpDown, Search, Target, Briefcase } from 'lucide-react';
 import { exportToCSV } from '../services/dataService';
 import ProductivityCharts from './ProductivityCharts';
+import { getWeekRange2026 } from '../utils/dateUtils';
 
 interface DashboardProps {
   productionData: DataRow[];
@@ -106,6 +107,10 @@ interface MaterialStatusPivotData {
 
 function formatDecimal(value: number): string {
   return new Intl.NumberFormat('en-US').format(Math.round(value));
+}
+
+function formatInteger(value: number): string {
+  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Math.round(value));
 }
 
 const WeeklyVennDiagram = ({
@@ -677,17 +682,7 @@ function getWeekNumber(d: Date = new Date()): number {
   return weekNo;
 }
 
-// Helper: Get Week Range for 2026 (Hardcoded Start Dec 29, 2025 as Week 1)
-const getWeekRange2026 = (week: number) => {
-  const week1Start = new Date(2025, 11, 29); // Dec 29, 2025 (Monday)
-  const start = new Date(week1Start);
-  start.setDate(week1Start.getDate() + (week - 1) * 7);
 
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-
-  return { start, end };
-};
 
 // ... (Dashboard Component) ...
 
@@ -2091,7 +2086,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     if (!yearlyPlanAmountKey || !yearlyPlanYearKey || yearlyPlanData.length === 0) return 0;
     const rows2026 = yearlyPlanData.filter(row => String(row[yearlyPlanYearKey]).trim() === '2026');
     const totalRaw = rows2026.reduce((sum, row) => sum + parseNumber(row[yearlyPlanAmountKey]), 0);
-    return totalRaw / 1000;
+    return totalRaw;
   }, [yearlyPlanData, yearlyPlanAmountKey, yearlyPlanYearKey]);
 
   const quarterlyTargets = useMemo(() => {
@@ -2108,7 +2103,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       const monthStr = String(row[yearlyPlanMonthKey] || '').trim();
       // Extract month number (handle "Tháng 1", "T1", "01", etc.)
       const month = parseInt(monthStr.replace(/\D/g, ''), 10);
-      const val = parseNumber(row[yearlyPlanAmountKey]) / 1000; // Convert to Billion
+      const val = parseNumber(row[yearlyPlanAmountKey]); // Raw Value
 
       if (month >= 1 && month <= 3) q1 += val;
       if (month >= 1 && month <= 6) q2 += val;
@@ -2154,7 +2149,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       const year = String(row[yearlyPlanYearKey] || '').trim();
       if (year === '2026') {
         const xuong = String(row[yearlyPlanXuongKey] || 'Chưa phân xưởng').trim();
-        const val = parseNumber(row[yearlyPlanAmountKey]) / 1000;
+        const val = parseNumber(row[yearlyPlanAmountKey]);
         planAgg[xuong] = (planAgg[xuong] || 0) + val;
       }
     });
@@ -3213,8 +3208,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                         {productivityAnalysisData.map((item, idx) => (
                           <tr key={idx} className="hover:bg-slate-50 transition-colors">
                             <td className="px-4 py-3 text-left font-medium text-slate-700 sticky left-0 bg-white z-10 border-r border-slate-100 drop-shadow-sm">{item.name}</td>
-                            <td className="px-2 py-3 text-slate-700">{formatDecimal(item.avgDinhBien)}</td>
-                            <td className="px-2 py-3 text-slate-700">{formatDecimal(item.avgWorkers)}</td>
+                            <td className="px-2 py-3 text-slate-700">{formatInteger(item.avgDinhBien)}</td>
+                            <td className="px-2 py-3 text-slate-700">{formatInteger(item.avgWorkers)}</td>
                             <td className="px-2 py-3 text-slate-600">{formatDecimal(item.totalHc)}</td>
                             <td className="px-2 py-3 text-slate-600">{formatDecimal(item.totalTc)}</td>
                             <td className="px-2 py-3 text-orange-600">{formatDecimal(item.overtimeRate)}%</td>
@@ -3229,10 +3224,10 @@ const Dashboard: React.FC<DashboardProps> = ({
                         <tr>
                           <td className="px-4 py-3 text-left sticky left-0 bg-purple-100 z-10 w-[200px]">TỔNG CỘNG / BÌNH QUÂN</td>
                           <td className="px-2 py-3">
-                            {formatDecimal(productivityAnalysisData.reduce((sum, item) => sum + item.avgDinhBien, 0))}
+                            {formatInteger(productivityAnalysisData.reduce((sum, item) => sum + item.avgDinhBien, 0))}
                           </td>
                           <td className="px-2 py-3">
-                            {formatDecimal(productivityAnalysisData.reduce((sum, item) => sum + item.avgWorkers, 0))}
+                            {formatInteger(productivityAnalysisData.reduce((sum, item) => sum + item.avgWorkers, 0))}
                           </td>
                           <td className="px-2 py-3">{formatDecimal(productivityAnalysisData.reduce((sum, item) => sum + item.totalHc, 0))}</td>
                           <td className="px-2 py-3">{formatDecimal(productivityAnalysisData.reduce((sum, item) => sum + item.totalTc, 0))}</td>
@@ -3268,7 +3263,11 @@ const Dashboard: React.FC<DashboardProps> = ({
 
                 {/* Performance Charts Section */}
                 {productivityAnalysisData.length > 0 && (
-                  <ProductivityCharts data={productivityAnalysisData} />
+                  <ProductivityCharts
+                    data={productivityAnalysisData}
+                    viewMode={viewMode}
+                    filters={unifiedTimeFilters}
+                  />
                 )}
               </div>
             )}

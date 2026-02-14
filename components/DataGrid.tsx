@@ -19,21 +19,29 @@ const ROWS_PER_PAGE = 200;
 type AggregationType = 'NONE' | 'SUM' | 'COUNT' | 'DISTINCT_COUNT' | 'AVERAGE';
 
 // --- Helper Functions ---
-const parseNumber = (value: any): number => {
-  if (typeof value === 'number') return value;
-  if (typeof value === 'string') {
-    // Remove commas, spaces, currency symbols
-    const clean = value.replace(/[, \u00a0]/g, '').trim();
-    const num = parseFloat(clean);
-    return isNaN(num) ? 0 : num;
-  }
-  return 0;
+const parseNumber = (valStr: string | number | null | undefined): number => {
+  try {
+    if (valStr === null || valStr === undefined) return 0;
+    if (typeof valStr === 'number') return isNaN(valStr) ? 0 : valStr;
+    let s = String(valStr).trim().replace(/[^\d.,-]/g, '');
+    if (!s) return 0;
+    if ((s.match(/\./g) || []).length > 1) { s = s.replace(/\./g, '').replace(',', '.'); return parseFloat(s) || 0; }
+    if ((s.match(/,/g) || []).length > 1) { s = s.replace(/,/g, ''); return parseFloat(s) || 0; }
+    if (s.indexOf('.') !== -1 && s.indexOf(',') !== -1) {
+      if (s.lastIndexOf('.') < s.lastIndexOf(',')) { s = s.replace(/\./g, '').replace(',', '.'); } else { s = s.replace(/,/g, ''); }
+    } else if (s.indexOf('.') !== -1) {
+      const parts = s.split('.');
+      if (parts.length === 2 && parts[1].length === 3) { s = s.replace('.', ''); }
+    } else if (s.indexOf(',') !== -1) { s = s.replace(',', '.'); }
+    const res = parseFloat(s);
+    return isNaN(res) ? 0 : res;
+  } catch (e) { return 0; }
 };
 
 const formatAggregationValue = (value: number, type: AggregationType): string => {
   if (type === 'COUNT' || type === 'DISTINCT_COUNT') return value.toLocaleString('vi-VN');
-  // For Sum/Avg, format with 2 decimals if needed, or integer
-  return value.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
+  // For Sum/Avg, format with 2 decimals strict
+  return new Intl.NumberFormat('vi-VN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 };
 
 // --- Helper Components ---
