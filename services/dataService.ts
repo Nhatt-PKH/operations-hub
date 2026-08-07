@@ -111,3 +111,24 @@ export const exportToCSV = (data: DataRow[], filename: string) => {
     document.body.removeChild(link);
   }
 };
+
+export const exportToExcel = async (data: any[], filename: string) => {
+  if (data.length === 0) return;
+  
+  // Dynamically load the xlsx library from CDN to avoid npm/Vite issues
+  if (!(window as any).XLSX) {
+    await new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+  
+  const XLSX = (window as any).XLSX;
+  const worksheet = XLSX.utils.json_to_sheet(data);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Data');
+  XLSX.writeFile(workbook, `${filename}.xlsx`);
+};

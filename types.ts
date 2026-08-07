@@ -12,6 +12,8 @@ export const TARGET_COLUMN_NAMES = {
 
   TINH_TRANG_IPO: 'TÌNH TRẠNG IPO', // New Column
 
+  BOP: 'BOP',
+
   GIA_TRI_CON_LAI: 'GIÁ TRỊ ĐƠN HÀNG CÒN LẠI',
 
   GIA_TRI_THUC_TE: 'GIÁ TRỊ CÒN LẠI',

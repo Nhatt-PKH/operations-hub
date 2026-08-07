@@ -5,8 +5,8 @@ import { DataRow, ColumnDefinition, TARGET_COLUMN_NAMES } from '../types';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, BarChart, Bar, LabelList, ReferenceLine, Label
 } from 'recharts';
-import { CheckCircle, Filter, ChevronDown, XCircle as CloseIcon, Table as TableIcon, Layers, LayoutList, Calculator, Hash, Activity, Package, MinusCircle, Box, ChevronLeft, ChevronRight, CheckSquare, Square, Calendar, DollarSign, ListFilter, Import, BarChart2, PieChart, TrendingUp, AlertCircle, ShoppingCart, FileText, ClipboardList, Clock, AlertTriangle, Download, Eye, X, Building2, ArrowUp, ArrowDown, ArrowUpDown, Search, Target, Briefcase } from 'lucide-react';
-import { exportToCSV } from '../services/dataService';
+import { CheckCircle, Filter, ChevronDown, XCircle as CloseIcon, Table as TableIcon, Layers, LayoutList, Calculator, Hash, Activity, Package, MinusCircle, Box, ChevronLeft, ChevronRight, CheckSquare, Square, Calendar, DollarSign, ListFilter, Import, BarChart2, PieChart, TrendingUp, AlertCircle, ShoppingCart, FileText, ClipboardList, Clock, AlertTriangle, Download, Eye, X, Building2, ArrowUp, ArrowDown, ArrowUpDown, Search, Target, Briefcase, PlusSquare, MinusSquare } from 'lucide-react';
+import { exportToCSV, exportToExcel } from '../services/dataService';
 import ProductivityCharts from './ProductivityCharts';
 import { getWeekRange2026 } from '../utils/dateUtils';
 
@@ -43,28 +43,40 @@ interface BottleneckItem {
 
 const STATUS_GROUPS = {
   CO_THE_SX: [
-    '01. ĐÃ BAO BÌ', '02. BAO BÌ', '03. FITTING', '04. VECNI', '05. MỘC',
-    '06. MÁY', '07. CTS', '08. SOFA', '09. ĐÁ', '10. KIM LOẠI', '11. CHƯA SX'
+    '01. NHẬP KHO KĐB', '02. BAO BÌ', '02.1. ĐÓNG KIỆN',
+    '03. FITTING', '03.3. FITTING KL',
+    '04. VECNI', '04.1. BỌC NỆM', '04.2. PVD',
+    '05. MỘC', '05.1. TỔ ĐÁ', '05.2. NGUỘI',
+    '06. MÁY', '06.1. HÀN',
+    '07. CTS', '07.1. CTS ĐÁ', '07.2. PHÔI', '07.ĐÃ GIAO GCNB',
+    '11. CHƯA SX',
+    '16. GIA CÔNG VỆ TINH-BTP', '16.1. GIA CÔNG VỆ TINH-NGUYÊN CON',
+    '16.2. GIA CÔNG VỆ TINH-ĐÁ', '16.3. GIA CÔNG VỆ TINH-KHÁC'
   ],
   VECNI_FITTING: [
-    '01. ĐÃ BAO BÌ', '02. BAO BÌ'
+    '01. NHẬP KHO KĐB', '02. BAO BÌ', '02.1. ĐÓNG KIỆN'
   ],
   CHUYEN_KHAC: [
-    '03. FITTING', '04. VECNI', '05. MỘC', '06. MÁY',
-    '07. CTS', '08. SOFA', '09. ĐÁ', '10. KIM LOẠI'
+    '03. FITTING', '03.3. FITTING KL',
+    '04. VECNI', '04.1. BỌC NỆM', '04.2. PVD',
+    '05. MỘC', '05.1. TỔ ĐÁ', '05.2. NGUỘI',
+    '06. MÁY', '06.1. HÀN',
+    '07. CTS', '07.1. CTS ĐÁ', '07.2. PHÔI', '07.ĐÃ GIAO GCNB',
+    '16. GIA CÔNG VỆ TINH-BTP', '16.1. GIA CÔNG VỆ TINH-NGUYÊN CON',
+    '16.2. GIA CÔNG VỆ TINH-ĐÁ', '16.3. GIA CÔNG VỆ TINH-KHÁC'
   ],
   CO_PHIEU_CHUA_SX: [
     '11. CHƯA SX'
   ],
   CHUA_THE_SX: [
     '12. CHƯA SX PHẦN CÒN LẠI', '13. CHƯA PHIẾU PHẦN CÒN LẠI',
-    '14. CHƯA PHIẾU', '15. CHƯA TRIỂN KHAI'
+    '14. CHƯA PHIẾU', '14.1. CHƯA PHIẾU KL', '15. CHƯA TRIỂN KHAI'
   ],
   VUONG_SL: [
     '12. CHƯA SX PHẦN CÒN LẠI', '13. CHƯA PHIẾU PHẦN CÒN LẠI'
   ],
   CHUA_TRIEN_KHAI: [
-    '14. CHƯA PHIẾU', '15. CHƯA TRIỂN KHAI'
+    '14. CHƯA PHIẾU', '14.1. CHƯA PHIẾU KL', '15. CHƯA TRIỂN KHAI'
   ]
 };
 
@@ -73,7 +85,10 @@ type MetricType = 'COUNT_HEX' | 'SUM_GT_CON_LAI' | 'SUM_GT_DON_HANG';
 // Types for Pivot Data
 interface WorkshopPivotData {
   uniqueWorkshops: string[];
-  uniqueStatuses: string[];
+  rows: { bop: string; status: string; key: string }[];
+  uniqueBops: string[];
+  bopTotals: Record<string, Record<string, number>>;
+  bopRowTotals: Record<string, number>;
   matrix: Record<string, Record<string, number>>;
   rowTotals: Record<string, number>;
   colTotals: Record<string, number>;
@@ -750,6 +765,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const xuongKey = findColumnKey(productionColumns, TARGET_COLUMN_NAMES.XUONG);
   const hangMucKey = findColumnKey(productionColumns, TARGET_COLUMN_NAMES.TEN_HANG_MUC);
   const daysAtCurrentStageKey = findColumnKey(productionColumns, TARGET_COLUMN_NAMES.SO_NGAY_CD_HIEN_TAI);
+  const bopKey = findColumnKey(productionColumns, TARGET_COLUMN_NAMES.BOP);
 
   const triGiaDonHangTongKey = findColumnKey(productionColumns, TARGET_COLUMN_NAMES.TRI_GIA_DON_HANG_TONG);
   const thanhTienTinhPhieuKey = findColumnKey(productionColumns, TARGET_COLUMN_NAMES.THANH_TIEN_TINH_PHIEU);
@@ -856,7 +872,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     congTrinh: [],
     xuong: [],
     tinhTrang: [],
-    tinhTrangIpo: ['SẢN XUẤT']
+    tinhTrangIpo: ['01. ĐANG SẢN XUẤT']
   });
 
   const [unifiedTimeFilters, setUnifiedTimeFilters] = useState<{
@@ -884,7 +900,10 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [projectSummaryMetric, setProjectSummaryMetric] = useState<'VALUE' | 'COUNT'>('VALUE');
   const [matStatusMetric, setMatStatusMetric] = useState<'COUNT_PR' | 'SUM_QTY'>('COUNT_PR');
   const [excludeFabrics, setExcludeFabrics] = useState(false);
+  const [expandedBops, setExpandedBops] = useState<Set<string>>(new Set());
   const [materialListPage, setMaterialListPage] = useState(1);
+  const [isProductionExportModalOpen, setIsProductionExportModalOpen] = useState(false);
+  const [selectedExportColumns, setSelectedExportColumns] = useState<string[]>([]);
   const MATERIAL_ITEMS_PER_PAGE = 15;
 
   // Default week filter to current week
@@ -1126,7 +1145,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const formatNumber = (value: number, metric?: MetricType) => {
     if (metric === 'COUNT_HEX') return value.toLocaleString('en-US');
     if (value >= 1_000_000_000) return (value / 1_000_000_000).toLocaleString('en-US', { maximumFractionDigits: 1 }) + ' Tỷ';
-    if (value >= 1_000_000) return (value / 1_000_000).toLocaleString('en-US', { maximumFractionDigits: 1 }) + ' Triệu';
+    if (value >= 1_000_000) return (value / 1).toLocaleString('en-US', { maximumFractionDigits: 0 }) + '';
     return value.toLocaleString('en-US', { maximumFractionDigits: 1 });
   };
 
@@ -1169,7 +1188,8 @@ const Dashboard: React.FC<DashboardProps> = ({
   };
 
   const handleExportProductionStatus = () => {
-    exportToCSV(filteredProductionData, `Tinh_Trang_San_Xuat_${new Date().toISOString().split('T')[0]}`);
+    setSelectedExportColumns(productionColumns.map(col => col.key));
+    setIsProductionExportModalOpen(true);
   };
 
   const handleExportBottlenecks = () => {
@@ -1835,22 +1855,77 @@ const Dashboard: React.FC<DashboardProps> = ({
   const pivotWorkshopData = useMemo<WorkshopPivotData | null>(() => {
     if (!tinhTrangKey || !xuongKey) return null;
     const uniqueWorkshops = Array.from(new Set(filteredProductionData.map(r => String(r[xuongKey] || '').trim()).filter(Boolean))).sort();
-    const uniqueStatuses = Array.from(new Set(filteredProductionData.map(r => String(r[tinhTrangKey] || '').trim()).filter(Boolean))).sort();
+
+    const rows: { bop: string; status: string; key: string }[] = [];
+    const seen = new Set<string>();
+    filteredProductionData.forEach(r => {
+      const bop = String(r[bopKey] || '').trim();
+      const status = String(r[tinhTrangKey] || '').trim();
+      if (status) {
+        const combinedKey = `${bop} ||| ${status}`;
+        if (!seen.has(combinedKey)) {
+          seen.add(combinedKey);
+          rows.push({ bop, status, key: combinedKey });
+        }
+      }
+    });
+
+    rows.sort((a, b) => {
+      const bopComp = a.bop.localeCompare(b.bop);
+      if (bopComp !== 0) return bopComp;
+      return a.status.localeCompare(b.status);
+    });
+
+    if (uniqueWorkshops.length === 0 || rows.length === 0) return null;
+
+    const uniqueBops = Array.from(new Set(rows.map(r => r.bop)));
+
     const matrix: Record<string, Record<string, number>> = {};
     const rowTotals: Record<string, number> = {};
     const colTotals: Record<string, number> = {};
+    const bopTotals: Record<string, Record<string, number>> = {};
+    const bopRowTotals: Record<string, number> = {};
     let grandTotal = 0;
-    uniqueStatuses.forEach(s => { matrix[s] = {}; rowTotals[s] = 0; uniqueWorkshops.forEach(w => { matrix[s][w] = 0; colTotals[w] = (colTotals[w] || 0); }); });
+
+    uniqueBops.forEach(b => {
+      bopTotals[b] = {};
+      bopRowTotals[b] = 0;
+      uniqueWorkshops.forEach(w => {
+        bopTotals[b][w] = 0;
+      });
+    });
+
+    rows.forEach(r => {
+      matrix[r.key] = {};
+      rowTotals[r.key] = 0;
+      uniqueWorkshops.forEach(w => {
+        matrix[r.key][w] = 0;
+        colTotals[w] = (colTotals[w] || 0);
+      });
+    });
+
     filteredProductionData.forEach(row => {
+      const bop = String(row[bopKey] || '').trim();
       const s = String(row[tinhTrangKey] || '').trim();
       const w = String(row[xuongKey] || '').trim();
       if (s && w) {
+        const combinedKey = `${bop} ||| ${s}`;
         const val = calculateMetricValue(row, workshopMetric);
-        if (matrix[s] && matrix[s][w] !== undefined) { matrix[s][w] += val; rowTotals[s] += val; colTotals[w] += val; grandTotal += val; }
+        if (matrix[combinedKey] && matrix[combinedKey][w] !== undefined) {
+          matrix[combinedKey][w] += val;
+          rowTotals[combinedKey] += val;
+          colTotals[w] += val;
+          grandTotal += val;
+
+          if (bopTotals[bop] && bopTotals[bop][w] !== undefined) {
+            bopTotals[bop][w] += val;
+            bopRowTotals[bop] += val;
+          }
+        }
       }
     });
-    return { uniqueWorkshops, uniqueStatuses, matrix, rowTotals, colTotals, grandTotal };
-  }, [filteredProductionData, tinhTrangKey, xuongKey, workshopMetric, valueKey, realValueKey]);
+    return { uniqueWorkshops, rows, uniqueBops, bopTotals, bopRowTotals, matrix, rowTotals, colTotals, grandTotal };
+  }, [filteredProductionData, tinhTrangKey, xuongKey, bopKey, workshopMetric, valueKey, realValueKey]);
 
   const pivotProjectData = useMemo<ProjectPivotData | null>(() => {
     if (!congTrinhKey || !tinhTrangKey) return null;
@@ -2228,7 +2303,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             )}
             {xuongKey && (
               <DashboardFilter
-                label="Xưởng Chính"
+                label="Khu Vực Sản Xuất"
                 options={xuongOptions}
                 selectedValues={filters.xuong}
                 onChange={(vals) => setFilters(prev => ({ ...prev, xuong: vals }))}
@@ -2701,37 +2776,83 @@ const Dashboard: React.FC<DashboardProps> = ({
           <div ref={pivotWorkshopRef}>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
               <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2 uppercase tracking-wide">
-                <TableIcon className="w-4 h-4 text-wood-500" /> 2. Chi tiết Giá trị (Tình Trạng x Xưởng)
+                <TableIcon className="w-4 h-4 text-wood-500" /> 2. Chi tiết Giá trị (Tình Trạng x Khu vực sản xuất)
               </h4>
               <MetricSwitcher current={workshopMetric} onChange={setWorkshopMetric} />
             </div>
             {pivotWorkshopData ? (
               <div className="overflow-x-auto custom-scrollbar border border-slate-200 rounded-lg">
-                <table className="w-full text-xs text-right min-w-[800px]">
+                <table className="w-full text-xs text-right min-w-[900px]">
                   <thead className="bg-wood-50 text-slate-700 font-semibold uppercase">
                     <tr>
-                      <th className="px-3 py-2 text-left sticky left-0 bg-wood-50 border-b border-wood-200 z-10 min-w-[180px]">Tình Trạng / Xưởng</th>
+                      <th className="px-3 py-2 text-left bg-wood-50 border-b border-wood-200 min-w-[150px]">
+                        <div className="flex items-center justify-between">
+                          <span>BOP</span>
+                          <div className="flex gap-1 ml-2">
+                            <button onClick={() => setExpandedBops(new Set(pivotWorkshopData.uniqueBops))} className="p-1 hover:bg-wood-200 rounded text-wood-600" title="Mở rộng tất cả"><PlusSquare size={14} /></button>
+                            <button onClick={() => setExpandedBops(new Set())} className="p-1 hover:bg-wood-200 rounded text-wood-600" title="Thu gọn tất cả"><MinusSquare size={14} /></button>
+                          </div>
+                        </div>
+                      </th>
+                      <th className="px-3 py-2 text-left sticky left-0 bg-wood-50 border-b border-wood-200 z-10 min-w-[180px]">Tình Trạng</th>
                       {pivotWorkshopData.uniqueWorkshops.map((w: string) => (<th key={w} className="px-3 py-2 border-b border-wood-200 whitespace-nowrap text-wood-800">{w}</th>))}
                       <th className="px-3 py-2 bg-wood-100 border-b border-wood-200 font-bold text-slate-800">Tổng Cộng</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {pivotWorkshopData.uniqueStatuses.map((s: string) => (
-                      <tr key={s} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-3 py-2 text-left font-medium text-slate-700 sticky left-0 bg-white hover:bg-slate-50 z-10 whitespace-nowrap border-r border-slate-100">{s}</td>
-                        {pivotWorkshopData.uniqueWorkshops.map((w: string) => {
-                          // Safe access using local reference to matrix
-                          const matrix = pivotWorkshopData?.matrix || {};
-                          const val = matrix?.[s]?.[w] || 0;
-                          return (<td key={w} className={`px-3 py-2 whitespace-nowrap ${val === 0 ? 'text-slate-300' : 'text-slate-600'}`}>{val === 0 ? '-' : formatNumber(val, workshopMetric)}</td>);
-                        })}
-                        <td className="px-3 py-2 font-bold text-slate-800 bg-wood-50/50">{formatNumber(pivotWorkshopData.rowTotals[s], workshopMetric)}</td>
-                      </tr>
-                    ))}
+                    {pivotWorkshopData.uniqueBops.map((bop) => {
+                      const isExpanded = expandedBops.has(bop);
+                      const toggleExpand = () => {
+                        const next = new Set(expandedBops);
+                        if (isExpanded) next.delete(bop);
+                        else next.add(bop);
+                        setExpandedBops(next);
+                      };
+
+                      const bopRows = pivotWorkshopData.rows.filter(r => r.bop === bop);
+
+                      return (
+                        <React.Fragment key={bop}>
+                          <tr className="bg-slate-100/80 hover:bg-slate-200/50 transition-colors cursor-pointer" onClick={toggleExpand}>
+                            <td className="px-3 py-2 text-left font-bold text-slate-700 border-r border-slate-200 whitespace-nowrap">
+                              <div className="flex items-center gap-2">
+                                <button className="text-slate-500 hover:text-slate-800">
+                                  {isExpanded ? <MinusSquare size={14} /> : <PlusSquare size={14} />}
+                                </button>
+                                {bop || '-'}
+                              </div>
+                            </td>
+                            <td className="px-3 py-2 text-left font-bold text-slate-700 sticky left-0 bg-slate-100/80 z-10 whitespace-nowrap border-r border-slate-200">
+                              Tổng ({bopRows.length})
+                            </td>
+                            {pivotWorkshopData.uniqueWorkshops.map((w: string) => {
+                              const val = pivotWorkshopData.bopTotals[bop]?.[w] || 0;
+                              return (<td key={w} className={`px-3 py-2 whitespace-nowrap font-semibold ${val === 0 ? 'text-slate-400' : 'text-slate-700'}`}>{val === 0 ? '-' : formatNumber(val, workshopMetric)}</td>);
+                            })}
+                            <td className="px-3 py-2 font-bold text-slate-800 bg-wood-50/80">{formatNumber(pivotWorkshopData.bopRowTotals[bop], workshopMetric)}</td>
+                          </tr>
+
+                          {isExpanded && bopRows.map((rowItem) => (
+                            <tr key={rowItem.key} className="hover:bg-slate-50 transition-colors">
+                              <td className="px-3 py-2 text-left text-slate-400 border-r border-slate-100 whitespace-nowrap"></td>
+                              <td className="px-3 py-2 text-left font-medium text-slate-700 sticky left-0 bg-white hover:bg-slate-50 z-10 whitespace-nowrap border-r border-slate-100 pl-6">
+                                {rowItem.status}
+                              </td>
+                              {pivotWorkshopData.uniqueWorkshops.map((w: string) => {
+                                const matrix = pivotWorkshopData?.matrix || {};
+                                const val = matrix?.[rowItem.key]?.[w] || 0;
+                                return (<td key={w} className={`px-3 py-2 whitespace-nowrap ${val === 0 ? 'text-slate-300' : 'text-slate-600'}`}>{val === 0 ? '-' : formatNumber(val, workshopMetric)}</td>);
+                              })}
+                              <td className="px-3 py-2 font-bold text-slate-800 bg-wood-50/50">{formatNumber(pivotWorkshopData.rowTotals[rowItem.key], workshopMetric)}</td>
+                            </tr>
+                          ))}
+                        </React.Fragment>
+                      );
+                    })}
                   </tbody>
                   <tfoot className="bg-wood-100 font-bold text-slate-800 border-t border-wood-300">
                     <tr>
-                      <td className="px-3 py-2 text-left sticky left-0 bg-wood-100 z-10">Tổng Cộng</td>
+                      <td colSpan={2} className="px-3 py-2 text-left sticky left-0 bg-wood-100 z-10">Tổng Cộng</td>
                       {pivotWorkshopData.uniqueWorkshops.map((w: string) => (<td key={w} className="px-3 py-2 whitespace-nowrap">{formatNumber(pivotWorkshopData.colTotals[w], workshopMetric)}</td>))}
                       <td className="px-3 py-2 text-wood-800 text-sm">{formatNumber(pivotWorkshopData.grandTotal, workshopMetric)}</td>
                     </tr>
@@ -3865,6 +3986,99 @@ const Dashboard: React.FC<DashboardProps> = ({
                 className="px-8 py-2.5 bg-slate-800 text-white font-bold rounded-lg hover:bg-slate-700 transition-all shadow-md active:scale-95"
               >
                 Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* MODAL: EXPORT TÌNH TRẠNG SẢN XUẤT */}
+      {isProductionExportModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-200">
+            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-wood-600 to-wood-800">
+              <div className="flex items-center gap-3 text-white">
+                <div className="p-2 bg-white/20 rounded-lg">
+                  <Download size={24} className="text-white" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white uppercase tracking-wider">Xuất Dữ Liệu Sản Xuất</h3>
+                  <p className="text-[10px] text-wood-100 font-medium">Chọn các cột cần xuất ra file Excel (.xlsx)</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsProductionExportModalOpen(false)}
+                className="p-2 hover:bg-white/20 rounded-full transition-all text-white/90 hover:text-white"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 custom-scrollbar">
+              <div className="mb-4 flex gap-2">
+                <button 
+                  onClick={() => setSelectedExportColumns(productionColumns.map(c => c.key))}
+                  className="px-3 py-1.5 text-xs font-semibold bg-slate-200 text-slate-700 hover:bg-slate-300 rounded transition-colors"
+                >
+                  Chọn Tất Cả
+                </button>
+                <button 
+                  onClick={() => setSelectedExportColumns([])}
+                  className="px-3 py-1.5 text-xs font-semibold bg-slate-200 text-slate-700 hover:bg-slate-300 rounded transition-colors"
+                >
+                  Bỏ Chọn Tất Cả
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {productionColumns.map(col => {
+                  const isSelected = selectedExportColumns.includes(col.key);
+                  return (
+                    <label key={col.key} className={`flex items-center gap-2 p-2 border rounded cursor-pointer transition-colors ${isSelected ? 'bg-wood-50 border-wood-300 text-wood-800' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                      <input 
+                        type="checkbox" 
+                        className="rounded border-slate-300 text-wood-600 focus:ring-wood-500"
+                        checked={isSelected}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedExportColumns(prev => [...prev, col.key]);
+                          } else {
+                            setSelectedExportColumns(prev => prev.filter(k => k !== col.key));
+                          }
+                        }}
+                      />
+                      <span className="text-sm font-medium truncate" title={col.label}>{col.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-200 bg-white flex justify-end gap-3">
+              <button
+                onClick={() => setIsProductionExportModalOpen(false)}
+                className="px-6 py-2.5 text-slate-600 font-bold hover:bg-slate-100 rounded-lg transition-all"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={() => {
+                  const exportDataMapped = filteredProductionData.map(row => {
+                    const newRow: any = {};
+                    selectedExportColumns.forEach(colKey => {
+                      const colDef = productionColumns.find(c => c.key === colKey);
+                      if (colDef) {
+                        newRow[colDef.label] = row[colKey];
+                      }
+                    });
+                    return newRow;
+                  });
+                  exportToExcel(exportDataMapped, `Tinh_Trang_San_Xuat_${new Date().toISOString().split('T')[0]}`);
+                  setIsProductionExportModalOpen(false);
+                }}
+                disabled={selectedExportColumns.length === 0}
+                className="px-8 py-2.5 bg-wood-600 text-white font-bold rounded-lg hover:bg-wood-700 transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                <Download size={18} /> Xác Nhận Xuất
               </button>
             </div>
           </div>
