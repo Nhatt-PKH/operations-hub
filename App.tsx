@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Link, useLocation, Navigate, Outlet, useOutletContext } from 'react-router-dom';
 import { LayoutDashboard, Table, Menu, RefreshCw, X, Box, Package, LogOut, Shield, User as UserIcon, Key, Loader, Check, AlertTriangle, Calendar, ShoppingCart, Import, FileText, ClipboardList, TrendingUp, CalendarRange, Upload, Clock } from 'lucide-react';
-import { fetchProductionData, fetchMaterialData, fetchKhsxData, fetchOrderData, fetchInventoryData, fetchTkbvData, fetchPthspData, fetchAnalysisData, fetchYearlyPlanData, fetchExportData, fetchAttendanceData } from './services/dataService';
+import { fetchProductionData, fetchMaterialData, fetchKhsxData, fetchOrderData, fetchInventoryData, fetchTkbvData, fetchPthspData, fetchAnalysisData, fetchYearlyPlanData, fetchExportData, fetchAttendanceData, fetchStockData } from './services/dataService';
 import { DataRow, ColumnDefinition, PRODUCTION_DEFAULT_VIEW_COLUMNS, TARGET_COLUMN_NAMES, APP_VIEWS } from './types';
 import Dashboard from './components/Dashboard';
 import DataGrid from './components/DataGrid';
@@ -29,6 +29,7 @@ const App: React.FC = () => {
               <Route path="/orders" element={<RequirePermission viewId="orders"><OrderDataWrapper /></RequirePermission>} />
               <Route path="/inventory" element={<RequirePermission viewId="inventory"><InventoryDataWrapper /></RequirePermission>} />
               <Route path="/export" element={<RequirePermission viewId="export"><ExportDataWrapper /></RequirePermission>} />
+              <Route path="/stock" element={<RequirePermission viewId="stock"><StockDataWrapper /></RequirePermission>} />
               <Route path="/attendance" element={<RequirePermission viewId="attendance"><AttendanceDataWrapper /></RequirePermission>} />
               <Route path="/khsx" element={<RequirePermission viewId="khsx"><DataGridWrapper type="khsx" /></RequirePermission>} />
               <Route path="/analysis" element={<RequirePermission viewId="analysis"><AnalysisDataWrapper /></RequirePermission>} />
@@ -93,6 +94,8 @@ const DashboardWrapper = () => {
     yearlyPlanColumns={context.yearlyPlanColumns}
     exportData={context.exportData}
     exportColumns={context.exportColumns}
+    stockData={context.stockData}
+    stockColumns={context.stockColumns}
     attendanceData={context.attendanceData}
     attendanceColumns={context.attendanceColumns}
     isSidebarCollapsed={context.isSidebarCollapsed}
@@ -167,6 +170,24 @@ const ExportDataWrapper = () => {
       TARGET_COLUMN_NAMES.XUONG
     ]}
     exportFileNamePrefix="du_lieu_xuat_kho"
+    enableAggregation={true}
+  />;
+};
+
+// --- Dành riêng cho Dữ liệu Tồn kho ---
+const StockDataWrapper = () => {
+  const context = useOutletContext<MainLayoutContext>();
+
+  return <DataGrid
+    data={context.stockData}
+    columns={context.stockColumns}
+    primarySearchColumn={{ header: 'MÃ CÔNG TRÌNH', label: 'Tìm kiếm (Mã CT)' }}
+    filterHeaders={[
+      'MÃ CÔNG TRÌNH',
+      'TÌNH TRẠNG KẾ HOẠCH GIAO HÀNG',
+      'TÊN SẢN PHẨM'
+    ]}
+    exportFileNamePrefix="du_lieu_ton_kho"
     enableAggregation={true}
   />;
 };
@@ -296,6 +317,8 @@ interface MainLayoutContext {
   yearlyPlanColumns: ColumnDefinition[];
   exportData: DataRow[];
   exportColumns: ColumnDefinition[];
+  stockData: DataRow[];
+  stockColumns: ColumnDefinition[];
   attendanceData: DataRow[];
   attendanceColumns: ColumnDefinition[];
   isSidebarCollapsed: boolean;
@@ -359,6 +382,9 @@ const MainLayout: React.FC = () => {
   const [exportData, setExportData] = useState<DataRow[]>([]);
   const [exportColumns, setExportColumns] = useState<ColumnDefinition[]>([]);
 
+  const [stockData, setStockData] = useState<DataRow[]>([]);
+  const [stockColumns, setStockColumns] = useState<ColumnDefinition[]>([]);
+
   const [attendanceData, setAttendanceData] = useState<DataRow[]>([]);
   const [attendanceColumns, setAttendanceColumns] = useState<ColumnDefinition[]>([]);
 
@@ -384,7 +410,7 @@ const MainLayout: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [prodResult, matResult, khsxResult, orderResult, inventoryResult, tkbvResult, pthspResult, analysisResult, yearlyPlanResult, exportResult, attendanceResult] = await Promise.all([
+      const [prodResult, matResult, khsxResult, orderResult, inventoryResult, tkbvResult, pthspResult, analysisResult, yearlyPlanResult, exportResult, stockResult, attendanceResult] = await Promise.all([
         fetchProductionData(),
         fetchMaterialData(),
         fetchKhsxData(),
@@ -395,6 +421,7 @@ const MainLayout: React.FC = () => {
         fetchAnalysisData(),
         fetchYearlyPlanData(),
         fetchExportData(),
+        fetchStockData(),
         fetchAttendanceData()
       ]);
 
@@ -427,6 +454,9 @@ const MainLayout: React.FC = () => {
 
       setExportData(exportResult.data);
       setExportColumns(exportResult.columns);
+
+      setStockData(stockResult.data);
+      setStockColumns(stockResult.columns);
 
       setAttendanceData(attendanceResult.data);
       setAttendanceColumns(attendanceResult.columns);
@@ -503,6 +533,8 @@ const MainLayout: React.FC = () => {
     yearlyPlanColumns,
     exportData,
     exportColumns,
+    stockData,
+    stockColumns,
     attendanceData,
     attendanceColumns,
     isSidebarCollapsed: isCollapsed

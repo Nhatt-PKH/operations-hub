@@ -17,6 +17,7 @@ const ANALYSIS_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSLj
 const YEARLY_PLAN_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTzOpOduvkY8V2GXeCUjr0LpLS25wJl6K2NsMgNZi_NTNYejaejy_EnlDoVunqMjU68jfNWNE7s5stR/pub?output=csv';
 const EXPORT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQP14PKN3mbwVnRK8y3QcerrlXLuHNLeKZrshnXZQZWiR8eXkdkZOEJjzgDrS5-KD6k5vnGiFojxLSx/pub?output=csv';
 const ATTENDANCE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ-C3_ov_ntmPkVKOoYKAhGs2mhqJNWvw1PjbdfPAR70KeEfYb_v81bDSiC2mDDAXHhuVxvC-V8yLaK/pub?output=csv';
+const STOCK_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTNW2TE6tXRC4f61keIq3LKttdWTVMJ1X2e06w8MrkyfGAAQc0wlUBGRkHqUwaQI5FmLw8F1tfZ3Gca/pub?gid=0&single=true&output=csv';
 
 const fetchFromUrl = async (url: string): Promise<{ data: DataRow[]; columns: ColumnDefinition[] }> => {
   try {
@@ -75,6 +76,7 @@ export const fetchAnalysisData = () => fetchFromUrl(ANALYSIS_SHEET_URL);
 export const fetchYearlyPlanData = () => fetchFromUrl(YEARLY_PLAN_SHEET_URL);
 export const fetchExportData = () => fetchFromUrl(EXPORT_SHEET_URL);
 export const fetchAttendanceData = () => fetchFromUrl(ATTENDANCE_SHEET_URL);
+export const fetchStockData = () => fetchFromUrl(STOCK_SHEET_URL);
 
 const detectColumnType = (header: string, data: DataRow[]): 'string' | 'number' | 'date' => {
   // Heuristic 1: Check header name

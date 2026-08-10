@@ -31,6 +31,8 @@ interface DashboardProps {
   analysisColumns: ColumnDefinition[];
   exportData: DataRow[];
   exportColumns: ColumnDefinition[];
+  stockData: DataRow[];
+  stockColumns: ColumnDefinition[];
   attendanceData: DataRow[];
   attendanceColumns: ColumnDefinition[];
   isSidebarCollapsed: boolean;
@@ -722,6 +724,8 @@ const Dashboard: React.FC<DashboardProps> = ({
   analysisColumns,
   exportData,
   exportColumns,
+  stockData,
+  stockColumns,
   attendanceData,
   attendanceColumns,
   isSidebarCollapsed
@@ -4015,27 +4019,27 @@ const Dashboard: React.FC<DashboardProps> = ({
 
             <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 custom-scrollbar">
               <div className="mb-4 flex gap-2">
-                <button 
+                <button
                   onClick={() => setSelectedExportColumns(productionColumns.map(c => c.key))}
                   className="px-3 py-1.5 text-xs font-semibold bg-slate-200 text-slate-700 hover:bg-slate-300 rounded transition-colors"
                 >
                   Chọn Tất Cả
                 </button>
-                <button 
+                <button
                   onClick={() => setSelectedExportColumns([])}
                   className="px-3 py-1.5 text-xs font-semibold bg-slate-200 text-slate-700 hover:bg-slate-300 rounded transition-colors"
                 >
                   Bỏ Chọn Tất Cả
                 </button>
               </div>
-              
+
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {productionColumns.map(col => {
                   const isSelected = selectedExportColumns.includes(col.key);
                   return (
                     <label key={col.key} className={`flex items-center gap-2 p-2 border rounded cursor-pointer transition-colors ${isSelected ? 'bg-wood-50 border-wood-300 text-wood-800' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
-                      <input 
-                        type="checkbox" 
+                      <input
+                        type="checkbox"
                         className="rounded border-slate-300 text-wood-600 focus:ring-wood-500"
                         checked={isSelected}
                         onChange={(e) => {

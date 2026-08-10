@@ -137,6 +137,7 @@ export const APP_VIEWS: AppView[] = [
   { id: 'orders', path: '/orders', label: 'Dữ liệu Đơn hàng tổng', iconName: 'ShoppingCart' },
   { id: 'inventory', path: '/inventory', label: 'Dữ liệu Nhập kho', iconName: 'Import' },
   { id: 'export', path: '/export', label: 'Dữ liệu Xuất kho', iconName: 'Export' },
+  { id: 'stock', path: '/stock', label: 'Dữ liệu Tồn kho', iconName: 'Box' },
   { id: 'attendance', path: '/attendance', label: 'Dữ liệu Điểm danh', iconName: 'Clock' },
   { id: 'khsx', path: '/khsx', label: 'Kế hoạch SX', iconName: 'Calendar' },
   { id: 'analysis', path: '/analysis', label: 'Dữ liệu Phân tích KH-TH', iconName: 'TrendingUp' },
