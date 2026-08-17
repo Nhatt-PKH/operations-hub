@@ -752,6 +752,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [isPthspDetailModalOpen, setIsPthspDetailModalOpen] = useState(false);
   const [isInventoryDetailModalOpen, setIsInventoryDetailModalOpen] = useState(false);
   const [isExportDetailModalOpen, setIsExportDetailModalOpen] = useState(false);
+  const [isStockDetailModalOpen, setIsStockDetailModalOpen] = useState(false);
 
   const findColumnKey = (cols: ColumnDefinition[], target: string) => {
     if (!cols || cols.length === 0) return target;
@@ -813,6 +814,12 @@ const Dashboard: React.FC<DashboardProps> = ({
   const expDateKey = findColumnKey(exportColumns, TARGET_COLUMN_NAMES.DATE);
   const expXuongKey = findColumnKey(exportColumns, TARGET_COLUMN_NAMES.XUONG);
   const expCongTrinhKey = findColumnKey(exportColumns, TARGET_COLUMN_NAMES.CONG_TRINH);
+
+  const stockDateKey = findColumnKey(stockColumns, TARGET_COLUMN_NAMES.DATE);
+  const stockValueKey = findColumnKey(stockColumns, TARGET_COLUMN_NAMES.GIA_TRI_TON_KHO);
+  const stockSapIdKey = findColumnKey(stockColumns, TARGET_COLUMN_NAMES.MA_ID_SAP);
+  const stockCongTrinhKey = findColumnKey(stockColumns, TARGET_COLUMN_NAMES.CONG_TRINH);
+  const stockXuongKey = findColumnKey(stockColumns, TARGET_COLUMN_NAMES.XUONG);
 
   const orderHexKey = findColumnKey(orderColumns, TARGET_COLUMN_NAMES.HEX);
   const orderDateKey = findColumnKey(orderColumns, TARGET_COLUMN_NAMES.NGAY_NHAN_TU_PM);
@@ -1448,6 +1455,108 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     return { count, value };
   }, [exportData, latestUnifiedDate, expDateKey, expThanhTienKey, expHexKey]);
+
+  // --- Stock Logic ---
+  const closestStockDate = useMemo(() => {
+    if (!latestUnifiedDate || !stockDateKey) return null;
+    let closest: Date | null = null;
+    stockData.forEach(row => {
+      const dStr = String(row[stockDateKey] || '').trim();
+      const d = parseVNDate(dStr);
+      if (d && d <= latestUnifiedDate) {
+        if (!closest || d > closest) closest = d;
+      }
+    });
+    return closest;
+  }, [stockData, latestUnifiedDate, stockDateKey]);
+
+  const latestStockDateAvailable = useMemo(() => {
+    if (!stockDateKey) return null;
+    let maxD: Date | null = null;
+    stockData.forEach(row => {
+      const dStr = String(row[stockDateKey] || '').trim();
+      const d = parseVNDate(dStr);
+      if (d && (!maxD || d > maxD)) {
+        maxD = d;
+      }
+    });
+    return maxD;
+  }, [stockData, stockDateKey]);
+
+  const filteredStockOverviewData = useMemo(() => {
+    return stockData.filter(row => {
+      if (!closestStockDate || !stockDateKey) return false;
+      const dStr = String(row[stockDateKey] || '').trim();
+      const d = parseVNDate(dStr);
+      if (!d || d.getTime() !== closestStockDate.getTime()) return false;
+
+      const congTrinhMatch = filters.congTrinh.length === 0 || (stockCongTrinhKey && filters.congTrinh.includes(String(row[stockCongTrinhKey] || '').trim()));
+      const xuongMatch = filters.xuong.length === 0 || (stockXuongKey && filters.xuong.includes(String(row[stockXuongKey] || '').trim()));
+      return congTrinhMatch && xuongMatch;
+    });
+  }, [stockData, closestStockDate, filters.congTrinh, filters.xuong, stockDateKey, stockCongTrinhKey, stockXuongKey]);
+
+  const stockOverviewCardValue = useMemo(() => {
+    try {
+      if (overviewMetric === 'COUNT') {
+        return countUniqueHex(filteredStockOverviewData, stockSapIdKey);
+      }
+      if (!stockValueKey) return 0;
+      return filteredStockOverviewData.reduce((sum, row) => sum + (parseNumber(row[stockValueKey])), 0);
+    } catch (err) { return 0; }
+  }, [filteredStockOverviewData, overviewMetric, stockValueKey, stockSapIdKey]);
+
+  const latestStockStats = useMemo(() => {
+    if (!latestStockDateAvailable || !stockDateKey) return { count: 0, value: 0 };
+    const latestRows = stockData.filter(row => {
+      const dStr = String(row[stockDateKey] || '').trim();
+      const d = parseVNDate(dStr);
+      return d && d.getTime() === latestStockDateAvailable.getTime();
+    });
+
+    const count = countUniqueHex(latestRows, stockSapIdKey);
+    const value = stockValueKey ? latestRows.reduce((sum, row) => sum + parseNumber(row[stockValueKey]), 0) : 0;
+    return { count, value, date: latestStockDateAvailable };
+  }, [stockData, latestStockDateAvailable, stockDateKey, stockValueKey, stockSapIdKey]);
+
+  const stockProjectAnalysis = useMemo(() => {
+    if (!closestStockDate || !stockDateKey || !stockCongTrinhKey) return [];
+
+    const agg: Record<string, { dailyCount: Set<string>, mtdCount: Set<string>, dailyVal: number, mtdVal: number }> = {};
+
+    stockData.forEach(row => {
+      const rowDate = parseVNDate(String(row[stockDateKey]));
+      if (!rowDate) return;
+
+      const group = String(row[stockCongTrinhKey] || 'Chưa xác định').trim();
+      const hex = stockSapIdKey ? String(row[stockSapIdKey] || Math.random().toString()) : Math.random().toString();
+      const val = stockValueKey ? parseNumber(row[stockValueKey]) : 0;
+
+      if (!agg[group]) agg[group] = { dailyCount: new Set(), mtdCount: new Set(), dailyVal: 0, mtdVal: 0 };
+
+      // Latest Date Available as MTD
+      if (latestStockDateAvailable && rowDate.getTime() === latestStockDateAvailable.getTime()) {
+        agg[group].mtdCount.add(hex);
+        agg[group].mtdVal += val;
+      }
+
+      if (rowDate.getTime() === closestStockDate.getTime()) {
+        agg[group].dailyCount.add(hex);
+        agg[group].dailyVal += val;
+      }
+    });
+
+    return Object.entries(agg).map(([name, data]) => {
+      const isCount = overviewMetric === 'COUNT';
+      return {
+        name,
+        daily: isCount ? data.dailyCount.size : data.dailyVal,
+        mtd: isCount ? data.mtdCount.size : data.mtdVal
+      };
+    })
+      .filter(i => i.mtd > 0 || i.daily > 0)
+      .sort((a, b) => b.daily - a.daily);
+  }, [stockData, closestStockDate, latestStockDateAvailable, stockDateKey, stockCongTrinhKey, stockValueKey, stockSapIdKey, overviewMetric]);
 
   // ... (KHSX & Inventory Chart Logic) ...
   const filteredKhsxData = useMemo(() => {
@@ -2560,7 +2669,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <div className="flex flex-col gap-4">
                 <div className="p-5 bg-gradient-to-br from-pink-50 to-rose-50 rounded-xl border border-pink-100 shadow-sm flex flex-col justify-center relative overflow-hidden group hover:shadow-md transition-shadow h-full min-h-[160px]">
                   <button onClick={() => setIsIpoDetailModalOpen(true)} className="absolute top-4 right-4 text-pink-400 hover:text-pink-700 transition-colors z-20" title="Xem chi tiết">
@@ -2568,7 +2677,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                   </button>
                   <div className="flex items-center gap-2 mb-3 z-10">
                     <div className="p-2 bg-pink-100 rounded-lg text-pink-600 shadow-sm group-hover:scale-110 transition-transform"><ShoppingCart size={20} /></div>
-                    <p className="text-sm font-bold text-pink-800 opacity-80 uppercase tracking-wide">1. Đơn hàng mới (IPO)</p>
+                    <p className="text-sm font-bold text-pink-800 opacity-80 uppercase tracking-wide">1. Đơn hàng mới (P001)</p>
                   </div>
                   <div className="z-10 flex flex-col items-start">
                     <span className="text-[10px] font-bold text-pink-500 uppercase tracking-wider opacity-70 mb-1 block">Trong ngày</span>
@@ -2603,7 +2712,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                   </button>
                   <div className="flex items-center gap-2 mb-3 z-10">
                     <div className="p-2 bg-blue-100 rounded-lg text-blue-600 shadow-sm group-hover:scale-110 transition-transform"><FileText size={20} /></div>
-                    <p className="text-sm font-bold text-blue-800 opacity-80 uppercase tracking-wide">2. Đã Triển khai BV</p>
+                    <p className="text-sm font-bold text-blue-800 opacity-80 uppercase tracking-wide">2. Đã Triển khai BV (P002)</p>
                   </div>
                   <div className="z-10 flex flex-col items-start">
                     <span className="text-[10px] font-bold text-blue-500 uppercase tracking-wider opacity-70 mb-1 block">Trong ngày</span>
@@ -2638,7 +2747,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                   </button>
                   <div className="flex items-center gap-2 mb-3 z-10">
                     <div className="p-2 bg-purple-100 rounded-lg text-purple-600 shadow-sm group-hover:scale-110 transition-transform"><ClipboardList size={20} /></div>
-                    <p className="text-sm font-bold text-purple-800 opacity-80 uppercase tracking-wide">3. Đã Tính phiếu</p>
+                    <p className="text-sm font-bold text-purple-800 opacity-80 uppercase tracking-wide">3. Đã Tính phiếu (P012)</p>
                   </div>
                   <div className="z-10 flex flex-col items-start">
                     <span className="text-[10px] font-bold text-purple-500 uppercase tracking-wider opacity-70 mb-1 block">Trong ngày</span>
@@ -2673,7 +2782,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                   </button>
                   <div className="flex items-center gap-2 mb-3 z-10">
                     <div className="p-2 bg-teal-100 rounded-lg text-teal-600 shadow-sm group-hover:scale-110 transition-transform"><Package size={20} /></div>
-                    <p className="text-sm font-bold text-teal-800 opacity-80 uppercase tracking-wide">4. Nhập kho</p>
+                    <p className="text-sm font-bold text-teal-800 opacity-80 uppercase tracking-wide">4. Nhập kho (P022)</p>
                   </div>
                   <div className="z-10 flex flex-col items-start">
                     <span className="text-[10px] font-bold text-teal-500 uppercase tracking-wider opacity-70 mb-1 block">Trong ngày</span>
@@ -2711,7 +2820,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                   </button>
                   <div className="flex items-center gap-2 mb-3 z-10">
                     <div className="p-2 bg-amber-100 rounded-lg text-amber-600 shadow-sm group-hover:scale-110 transition-transform"><Package size={20} /></div>
-                    <p className="text-sm font-bold text-amber-800 opacity-80 uppercase tracking-wide">5. Xuất kho</p>
+                    <p className="text-sm font-bold text-amber-800 opacity-80 uppercase tracking-wide">5. Xuất kho (P025)</p>
                   </div>
                   <div className="z-10 flex flex-col items-start">
                     <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider opacity-70 mb-1 block">Trong ngày</span>
@@ -2739,9 +2848,53 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </div>
               </div>
 
+              {/* Card 6: Tồn kho */}
+              <div className="flex flex-col gap-4">
+                <div className="p-5 bg-gradient-to-br from-gray-50 to-slate-100 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center relative overflow-hidden group hover:shadow-md transition-shadow h-full min-h-[160px]">
+                  <button onClick={() => setIsStockDetailModalOpen(true)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 transition-colors z-20" title="Xem chi tiết">
+                    <Eye size={18} />
+                  </button>
+                  <div className="flex items-center gap-2 mb-3 z-10">
+                    <div className="p-2 bg-slate-200 rounded-lg text-slate-600 shadow-sm group-hover:scale-110 transition-transform"><Box size={20} /></div>
+                    <p className="text-sm font-bold text-slate-800 opacity-80 uppercase tracking-wide">6. Tồn kho</p>
+                  </div>
+                  <div className="z-10 flex flex-col items-start">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider opacity-70 mb-1 block">
+                      Dữ liệu ngày: {closestStockDate ? `${closestStockDate.getDate().toString().padStart(2, '0')}/${(closestStockDate.getMonth() + 1).toString().padStart(2, '0')}/${closestStockDate.getFullYear()}` : 'N/A'}
+                    </span>
+                    <div className="flex items-baseline gap-2">
+                      <h4 className="text-4xl font-extrabold text-slate-700 tracking-tight">
+                        {overviewMetric === 'COUNT'
+                          ? stockOverviewCardValue.toLocaleString('en-US')
+                          : (stockOverviewCardValue / 1000).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 1 })}
+                      </h4>
+                      <span className="text-sm font-medium text-slate-500">
+                        {overviewMetric === 'COUNT' ? 'items' : 'Tỷ'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="z-10 mt-3 pt-3 border-t border-slate-200/60 w-full">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-bold text-slate-600 uppercase">
+                        Giá trị tồn mới nhất ({latestStockStats.date ? `${latestStockStats.date.getDate().toString().padStart(2, '0')}/${(latestStockStats.date.getMonth() + 1).toString().padStart(2, '0')}/${latestStockStats.date.getFullYear()}` : 'N/A'})
+                      </span>
+                      <div className="flex justify-end mt-1">
+                        <span className="text-3xl font-extrabold text-slate-700">
+                          {overviewMetric === 'COUNT'
+                            ? `${latestStockStats.count.toLocaleString('en-US')} items`
+                            : (latestStockStats.value / 1000).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 1 }) + ' Tỷ'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
         )}
+
+
 
         <div ref={productionStatusRef} id="production-status-section" className="scroll-mt-24 w-full bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col gap-8">
           <div className="flex flex-row justify-between items-start border-b border-slate-100 pb-4">
@@ -3987,6 +4140,53 @@ const Dashboard: React.FC<DashboardProps> = ({
             <div className="p-4 border-t border-slate-200 bg-white flex justify-end">
               <button
                 onClick={() => setIsExportDetailModalOpen(false)}
+                className="px-8 py-2.5 bg-slate-800 text-white font-bold rounded-lg hover:bg-slate-700 transition-all shadow-md active:scale-95"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CHI TIẾT TỒN KHO */}
+      {isStockDetailModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-200">
+            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-slate-600 to-slate-800">
+              <div className="flex items-center gap-3 text-white">
+                <div className="p-2 bg-white/20 rounded-lg">
+                  <Box size={24} className="text-white" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white uppercase tracking-wider">Chi tiết Tồn kho</h3>
+                  <p className="text-[10px] text-slate-50 font-medium">{getContextLabel()}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsStockDetailModalOpen(false)}
+                className="p-2 hover:bg-white/20 rounded-full transition-all text-white/90 hover:text-white"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 custom-scrollbar">
+              <DetailModalTable
+                data={stockProjectAnalysis}
+                title="Chi tiết theo Công trình"
+                icon={Briefcase}
+                dateLabel={`NGÀY TỒN LỌC ${closestStockDate ? `(${closestStockDate.getDate().toString().padStart(2, '0')}/${(closestStockDate.getMonth() + 1).toString().padStart(2, '0')}/${closestStockDate.getFullYear()})` : ''}`}
+                mtdLabel={`GIÁ TRỊ TỒN MỚI NHẤT ${latestStockStats.date ? `(${latestStockStats.date.getDate().toString().padStart(2, '0')}/${(latestStockStats.date.getMonth() + 1).toString().padStart(2, '0')}/${latestStockStats.date.getFullYear()})` : ''}`}
+                unitLabel={overviewMetric === 'COUNT' ? '(SL Mã SAP)' : '(Giá trị VND)'}
+                primaryColorClass="text-slate-700"
+                secondaryColorClass="text-slate-900"
+              />
+            </div>
+
+            <div className="p-4 border-t border-slate-200 bg-white flex justify-end">
+              <button
+                onClick={() => setIsStockDetailModalOpen(false)}
                 className="px-8 py-2.5 bg-slate-800 text-white font-bold rounded-lg hover:bg-slate-700 transition-all shadow-md active:scale-95"
               >
                 Đóng

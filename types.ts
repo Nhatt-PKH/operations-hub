@@ -25,6 +25,8 @@ export const TARGET_COLUMN_NAMES = {
   THANH_TIEN_NHAP_KHO: 'THÀNH TIỀN NHẬP KHO LŨY KẾ', // Cột cũ của Production View
   INVENTORY_AMOUNT: 'THÀNH TIỀN NHẬP KHO', // Cột mới chính xác cho Inventory View
   EXPORT_AMOUNT: 'THÀNH TIỀN XUẤT KHO', // Correct column for Export View
+  GIA_TRI_TON_KHO: 'GIÁ TRỊ', // For Stock View
+  MA_ID_SAP: 'MÃ ID SAP', // For counting unique items in Stock
   NHAP_KHO_TUAN: 'NHẬP KHO TUẦN', // Cột mới theo yêu cầu
 
   // Inventory Specific Date Columns
