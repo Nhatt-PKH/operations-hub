@@ -753,6 +753,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [isInventoryDetailModalOpen, setIsInventoryDetailModalOpen] = useState(false);
   const [isExportDetailModalOpen, setIsExportDetailModalOpen] = useState(false);
   const [isStockDetailModalOpen, setIsStockDetailModalOpen] = useState(false);
+  const [bottleneckViewMode, setBottleneckViewMode] = useState<'BOP' | 'TÌNH TRẠNG'>('BOP');
 
   const findColumnKey = (cols: ColumnDefinition[], target: string) => {
     if (!cols || cols.length === 0) return target;
@@ -1109,7 +1110,14 @@ const Dashboard: React.FC<DashboardProps> = ({
     const durationKeys = ['<3 NGÀY', '4-7 NGÀY', '2 tuần', '3 tuần', 'Từ 4 tuần trở lên'];
 
     filteredProductionData.forEach(row => {
-      const status = String(row[tinhTrangKey] || '').trim();
+      let status = '';
+      if (bottleneckViewMode === 'BOP') {
+         status = bopKey ? String(row[bopKey] || 'Chưa xác định').trim() : 'Chưa xác định';
+         if (!status) status = 'Chưa xác định';
+      } else {
+         status = String(row[tinhTrangKey] || '').trim();
+      }
+
       const duration = String(row[daysAtCurrentStageKey] || '').trim();
 
       if (status && duration) {
@@ -1131,14 +1139,21 @@ const Dashboard: React.FC<DashboardProps> = ({
     });
 
     return Object.values(agg).sort((a, b) => a.name.localeCompare(b.name));
-  }, [filteredProductionData, tinhTrangKey, daysAtCurrentStageKey]);
+  }, [filteredProductionData, tinhTrangKey, daysAtCurrentStageKey, bottleneckViewMode, bopKey]);
 
   const topBottlenecks = useMemo<{ name: string; count: number }[]>(() => {
     if (!tinhTrangKey || !daysAtCurrentStageKey) return [];
 
     const counts: Record<string, number> = {};
     filteredProductionData.forEach(row => {
-      const status = String(row[tinhTrangKey] || '').trim();
+      let status = '';
+      if (bottleneckViewMode === 'BOP') {
+         status = bopKey ? String(row[bopKey] || 'Chưa xác định').trim() : 'Chưa xác định';
+         if (!status) status = 'Chưa xác định';
+      } else {
+         status = String(row[tinhTrangKey] || '').trim();
+      }
+      
       const duration = String(row[daysAtCurrentStageKey] || '').trim();
 
       if (status && duration.toLowerCase().includes('4 tuần')) {
@@ -1150,7 +1165,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
-  }, [filteredProductionData, tinhTrangKey, daysAtCurrentStageKey]);
+  }, [filteredProductionData, tinhTrangKey, daysAtCurrentStageKey, bottleneckViewMode, bopKey]);
 
 
   const formatNumber = (value: number, metric?: MetricType) => {
@@ -3032,7 +3047,24 @@ const Dashboard: React.FC<DashboardProps> = ({
                   <p className="text-xs text-slate-500">Phân tích thời gian tồn tại của các hạng mục (HEX) tại từng công đoạn</p>
                 </div>
               </div>
-              <button onClick={handleExportBottlenecks} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg border border-red-100" title="Xuất báo cáo điểm nghẽn"><Download size={16} /></button>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-lg border border-slate-200 shadow-inner">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-2 hidden sm:inline-block">CHẾ ĐỘ XEM:</span>
+                  <button
+                    onClick={() => setBottleneckViewMode('BOP')}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all duration-200 ${bottleneckViewMode === 'BOP' ? 'bg-white text-indigo-700 shadow-sm border border-indigo-100/50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
+                  >
+                    BOP
+                  </button>
+                  <button
+                    onClick={() => setBottleneckViewMode('TÌNH TRẠNG')}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all duration-200 ${bottleneckViewMode === 'TÌNH TRẠNG' ? 'bg-white text-indigo-700 shadow-sm border border-indigo-100/50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
+                  >
+                    TÌNH TRẠNG
+                  </button>
+                </div>
+                <button onClick={handleExportBottlenecks} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg border border-red-100" title="Xuất báo cáo điểm nghẽn"><Download size={16} /></button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
