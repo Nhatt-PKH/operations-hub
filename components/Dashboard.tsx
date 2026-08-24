@@ -2057,15 +2057,15 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   const pivotFunnelData = useMemo(() => {
     if (!bopKey) return null;
-    
+
     const agg: Record<string, number> = {};
     let total = 0;
-    
+
     filteredProductionData.forEach(row => {
       const bop = String(row[bopKey] || 'Chưa xác định').trim();
       const s = String(row[tinhTrangKey] || '').trim();
       const w = String(row[xuongKey] || '').trim();
-      
+
       if (s && w) {
         const val = calculateMetricValue(row, workshopMetric);
         agg[bop] = (agg[bop] || 0) + val;
@@ -2081,11 +2081,11 @@ const Dashboard: React.FC<DashboardProps> = ({
         .sort((a, b) => {
           const indexA = bopOrder.indexOf(a.name);
           const indexB = bopOrder.indexOf(b.name);
-          
+
           if (indexA !== -1 && indexB !== -1) return indexA - indexB;
           if (indexA !== -1) return -1;
           if (indexB !== -1) return 1;
-          
+
           // Các BOP không có trong danh sách được xếp phía dưới, theo giá trị giảm dần
           return b.value - a.value;
         }),
@@ -2095,9 +2095,9 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   const customFunnelData = useMemo(() => {
     if (!pivotFunnelData || !pivotFunnelData.data) return [];
-    
+
     const getVal = (bop: string) => pivotFunnelData.data.find(d => d.name === bop)?.value || 0;
-    
+
     let p022Val = 0;
     if (closestStockDate && stockDateKey && stockValueKey) {
       p022Val = stockData.filter(r => {
@@ -2109,7 +2109,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         return rowDate.getTime() === closestStockDate.getTime();
       }).reduce((sum, row) => sum + parseNumber(row[stockValueKey]), 0);
     }
-    
+
     const funnelItems = [
       { id: 'P001', name: 'P001. TỔNG ĐƠN HÀNG NHÀ MÁY CÒN LẠI', value: getVal('P001'), color: '#3b82f6' }, // blue-500
       { id: 'P002', name: 'P002. Bản vẽ kỹ thuật', value: getVal('P002'), color: '#fdba74' }, // orange-300 (peach)
@@ -2123,9 +2123,9 @@ const Dashboard: React.FC<DashboardProps> = ({
       { id: 'P021', name: 'P021. Đóng gói hoàn thành', value: getVal('P021'), color: '#a3e635' },
       { id: 'P022', name: 'P022. TỒN KHO', value: p022Val, color: '#eab308' } // yellow-500
     ];
-    
+
     const maxVal = Math.max(...funnelItems.map(item => item.value), 1);
-    
+
     return funnelItems.map(item => ({
       ...item,
       percentage: Math.max((item.value / maxVal) * 100, 2) // min 2% width so it's visible
@@ -3156,31 +3156,31 @@ const Dashboard: React.FC<DashboardProps> = ({
               <h3 className="font-serif text-2xl md:text-3xl font-bold uppercase text-center mb-8 text-slate-800 tracking-wide">
                 TÌNH TRẠNG ĐƠN HÀNG AATN
               </h3>
-              
-              <div className="flex flex-row w-full max-w-4xl mx-auto relative mt-2">
-                <div className="w-1/5 pr-2 sm:pr-4 flex flex-col gap-3">
+
+              <div className="flex flex-row w-full max-w-5xl mx-auto relative mt-2">
+                <div className="w-auto shrink-0 pr-4 flex flex-col gap-3">
                   {customFunnelData.map((item) => (
-                    <div key={`lbl-${item.id}`} className="h-10 text-right font-semibold text-slate-700 text-xs sm:text-sm flex items-center justify-end leading-tight">
+                    <div key={`lbl-${item.id}`} className="h-10 text-right font-semibold text-slate-700 text-sm flex items-center justify-end whitespace-nowrap">
                       {item.name}
                     </div>
                   ))}
                 </div>
-                
-                <div className="w-4/5 relative flex flex-col gap-3">
-                  <svg className="absolute inset-0 w-full h-full pointer-events-none z-30 overflow-visible" preserveAspectRatio="none" viewBox="0 0 100 100">
-                    <polygon 
-                      points="50,100 0,0 100,0" 
-                      fill="none" 
-                      stroke="#ef4444" 
-                      strokeWidth="3.5" 
-                      strokeDasharray="6,4" 
+
+                <div className="flex-1 relative flex flex-col gap-3 min-w-0">
+                  <svg className="absolute top-0 -left-[5%] w-[110%] h-full pointer-events-none z-30 overflow-visible" preserveAspectRatio="none" viewBox="0 0 100 100">
+                    <polygon
+                      points="50,100 0,0 100,0"
+                      fill="none"
+                      stroke="#ef4444"
+                      strokeWidth="3.5"
+                      strokeDasharray="6,4"
                       vectorEffect="non-scaling-stroke"
                     />
                   </svg>
-                  
+
                   {customFunnelData.map((item) => (
                     <div key={`bar-${item.id}`} className="h-10 flex justify-center w-full relative z-20">
-                      <div 
+                      <div
                         className="h-full flex items-center justify-center rounded-sm transition-all duration-500 shadow-sm"
                         style={{ width: `${item.percentage}%`, backgroundColor: item.color }}
                         title={`${item.name}: ${formatNumber(item.value, workshopMetric)}`}
