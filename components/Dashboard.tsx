@@ -1112,10 +1112,10 @@ const Dashboard: React.FC<DashboardProps> = ({
     filteredProductionData.forEach(row => {
       let status = '';
       if (bottleneckViewMode === 'BOP') {
-         status = bopKey ? String(row[bopKey] || 'Chưa xác định').trim() : 'Chưa xác định';
-         if (!status) status = 'Chưa xác định';
+        status = bopKey ? String(row[bopKey] || 'Chưa xác định').trim() : 'Chưa xác định';
+        if (!status) status = 'Chưa xác định';
       } else {
-         status = String(row[tinhTrangKey] || '').trim();
+        status = String(row[tinhTrangKey] || '').trim();
       }
 
       const duration = String(row[daysAtCurrentStageKey] || '').trim();
@@ -1148,12 +1148,12 @@ const Dashboard: React.FC<DashboardProps> = ({
     filteredProductionData.forEach(row => {
       let status = '';
       if (bottleneckViewMode === 'BOP') {
-         status = bopKey ? String(row[bopKey] || 'Chưa xác định').trim() : 'Chưa xác định';
-         if (!status) status = 'Chưa xác định';
+        status = bopKey ? String(row[bopKey] || 'Chưa xác định').trim() : 'Chưa xác định';
+        if (!status) status = 'Chưa xác định';
       } else {
-         status = String(row[tinhTrangKey] || '').trim();
+        status = String(row[tinhTrangKey] || '').trim();
       }
-      
+
       const duration = String(row[daysAtCurrentStageKey] || '').trim();
 
       if (status && duration.toLowerCase().includes('4 tuần')) {
@@ -2054,6 +2054,83 @@ const Dashboard: React.FC<DashboardProps> = ({
     });
     return { uniqueWorkshops, rows, uniqueBops, bopTotals, bopRowTotals, matrix, rowTotals, colTotals, grandTotal };
   }, [filteredProductionData, tinhTrangKey, xuongKey, bopKey, workshopMetric, valueKey, realValueKey]);
+
+  const pivotFunnelData = useMemo(() => {
+    if (!bopKey) return null;
+    
+    const agg: Record<string, number> = {};
+    let total = 0;
+    
+    filteredProductionData.forEach(row => {
+      const bop = String(row[bopKey] || 'Chưa xác định').trim();
+      const s = String(row[tinhTrangKey] || '').trim();
+      const w = String(row[xuongKey] || '').trim();
+      
+      if (s && w) {
+        const val = calculateMetricValue(row, workshopMetric);
+        agg[bop] = (agg[bop] || 0) + val;
+        total += val;
+      }
+    });
+
+    const bopOrder = ['P001', 'P002', 'P012', 'P013', 'GCVT', 'P014', 'P016', 'P018', 'P020', 'P021'];
+
+    return {
+      data: Object.entries(agg)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => {
+          const indexA = bopOrder.indexOf(a.name);
+          const indexB = bopOrder.indexOf(b.name);
+          
+          if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+          if (indexA !== -1) return -1;
+          if (indexB !== -1) return 1;
+          
+          // Các BOP không có trong danh sách được xếp phía dưới, theo giá trị giảm dần
+          return b.value - a.value;
+        }),
+      total
+    };
+  }, [filteredProductionData, bopKey, workshopMetric, valueKey, realValueKey, tinhTrangKey, xuongKey]);
+
+  const customFunnelData = useMemo(() => {
+    if (!pivotFunnelData || !pivotFunnelData.data) return [];
+    
+    const getVal = (bop: string) => pivotFunnelData.data.find(d => d.name === bop)?.value || 0;
+    
+    let p022Val = 0;
+    if (closestStockDate && stockDateKey && stockValueKey) {
+      p022Val = stockData.filter(r => {
+        const dStr = String(r[stockDateKey] || '').trim();
+        if (!dStr) return false;
+        const [d, m, y] = dStr.split('/');
+        if (!d || !m || !y) return false;
+        const rowDate = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+        return rowDate.getTime() === closestStockDate.getTime();
+      }).reduce((sum, row) => sum + parseNumber(row[stockValueKey]), 0);
+    }
+    
+    const funnelItems = [
+      { id: 'P001', name: 'P001. TỔNG ĐƠN HÀNG NHÀ MÁY CÒN LẠI', value: getVal('P001'), color: '#3b82f6' }, // blue-500
+      { id: 'P002', name: 'P002. Bản vẽ kỹ thuật', value: getVal('P002'), color: '#fdba74' }, // orange-300 (peach)
+      { id: 'P012', name: 'P012. Có phiếu chưa sản xuất', value: getVal('P012'), color: '#a3e635' }, // lime-400
+      { id: 'P013', name: 'P013. Ra phôi sơ chế', value: getVal('P013'), color: '#a3e635' },
+      { id: 'GCVT', name: 'P013. GCVT', value: getVal('GCVT'), color: '#a3e635' },
+      { id: 'P014', name: 'P014. Tinh chỉnh định hình', value: getVal('P014'), color: '#a3e635' },
+      { id: 'P016', name: 'P016. Lắp ráp tinh chỉnh', value: getVal('P016'), color: '#a3e635' },
+      { id: 'P018', name: 'P018. Sơn - làm màu', value: getVal('P018'), color: '#a3e635' },
+      { id: 'P020', name: 'P020. Lắp ráp hoàn thiện', value: getVal('P020'), color: '#a3e635' },
+      { id: 'P021', name: 'P021. Đóng gói hoàn thành', value: getVal('P021'), color: '#a3e635' },
+      { id: 'P022', name: 'P022. TỒN KHO', value: p022Val, color: '#eab308' } // yellow-500
+    ];
+    
+    const maxVal = Math.max(...funnelItems.map(item => item.value), 1);
+    
+    return funnelItems.map(item => ({
+      ...item,
+      percentage: Math.max((item.value / maxVal) * 100, 2) // min 2% width so it's visible
+    }));
+  }, [pivotFunnelData, stockData, closestStockDate, stockDateKey, stockValueKey]);
 
   const pivotProjectData = useMemo<ProjectPivotData | null>(() => {
     if (!congTrinhKey || !tinhTrangKey) return null;
@@ -3032,6 +3109,91 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </table>
               </div>
             ) : <div className="p-8 text-center text-slate-500 bg-slate-50 rounded-lg">Không đủ dữ liệu hoặc thiếu cấu hình cột để tạo bảng Pivot.</div>}
+          </div>
+          <div className="flex flex-col xl:flex-row gap-6">
+            <div className="w-full xl:w-1/5">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
+                <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2 uppercase tracking-wide">
+                  <Filter className="w-4 h-4 text-amber-600" /> 3. BIỂU ĐỒ PHỄU
+                </h4>
+              </div>
+              <div className="w-full">
+                {pivotFunnelData && pivotFunnelData.data && pivotFunnelData.data.length > 0 ? (
+                  <div className="overflow-x-auto rounded-lg border border-slate-200">
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-slate-50">
+                        <tr>
+                          <th className="px-4 py-3 border-b border-slate-200 text-left font-bold text-slate-700 w-1/2">BOP</th>
+                          <th className="px-4 py-3 border-b border-slate-200 text-right font-bold text-slate-700 w-1/2">Giá Trị</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-slate-100">
+                        {pivotFunnelData.data.map((item, index) => (
+                          <tr key={item.name} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-4 py-3 text-left font-medium text-slate-700 flex items-center gap-2">
+                              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 text-slate-600 text-xs font-bold">{index + 1}</span>
+                              <span className="truncate max-w-[80px]" title={item.name}>{item.name}</span>
+                            </td>
+                            <td className="px-4 py-3 text-right font-semibold text-slate-800">
+                              {formatNumber(item.value, workshopMetric)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="bg-wood-100 font-bold text-slate-800 border-t border-wood-300">
+                        <tr>
+                          <td className="px-4 py-3 text-left uppercase text-slate-700">Tổng Cộng</td>
+                          <td className="px-4 py-3 text-right text-slate-800 text-base">{formatNumber(pivotFunnelData.total, workshopMetric)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                ) : <div className="p-8 text-center text-slate-500 bg-slate-50 rounded-lg border border-slate-200">Không có dữ liệu để hiển thị.</div>}
+              </div>
+            </div>
+
+            <div className="w-full xl:w-4/5 flex flex-col bg-slate-50/50 p-6 rounded-xl border border-slate-200 relative">
+              <h3 className="font-serif text-2xl md:text-3xl font-bold uppercase text-center mb-8 text-slate-800 tracking-wide">
+                TÌNH TRẠNG ĐƠN HÀNG AATN
+              </h3>
+              
+              <div className="flex flex-row w-full max-w-4xl mx-auto relative mt-2">
+                <div className="w-1/5 pr-2 sm:pr-4 flex flex-col gap-3">
+                  {customFunnelData.map((item) => (
+                    <div key={`lbl-${item.id}`} className="h-10 text-right font-semibold text-slate-700 text-xs sm:text-sm flex items-center justify-end leading-tight">
+                      {item.name}
+                    </div>
+                  ))}
+                </div>
+                
+                <div className="w-4/5 relative flex flex-col gap-3">
+                  <svg className="absolute inset-0 w-full h-full pointer-events-none z-30 overflow-visible" preserveAspectRatio="none" viewBox="0 0 100 100">
+                    <polygon 
+                      points="50,100 0,0 100,0" 
+                      fill="none" 
+                      stroke="#ef4444" 
+                      strokeWidth="3.5" 
+                      strokeDasharray="6,4" 
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  </svg>
+                  
+                  {customFunnelData.map((item) => (
+                    <div key={`bar-${item.id}`} className="h-10 flex justify-center w-full relative z-20">
+                      <div 
+                        className="h-full flex items-center justify-center rounded-sm transition-all duration-500 shadow-sm"
+                        style={{ width: `${item.percentage}%`, backgroundColor: item.color }}
+                        title={`${item.name}: ${formatNumber(item.value, workshopMetric)}`}
+                      >
+                        <span className="text-black font-bold text-sm truncate px-1">
+                          {Math.round(item.value / 1000).toLocaleString('en-US')}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
