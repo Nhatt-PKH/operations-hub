@@ -97,25 +97,139 @@ const detectColumnType = (header: string, data: DataRow[]): 'string' | 'number' 
   return 'string';
 };
 
-export const exportToCSV = (data: DataRow[], filename: string) => {
-  const csv = Papa.unparse(data);
-  // Add Byte Order Mark (BOM) for Excel to recognize UTF-8
-  const bom = "\uFEFF";
-  const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+/**
+ * Chuyển đổi các giá trị số trong dữ liệu từ định dạng GSheet VN (1.234,01)
+ * sang số thực (1234.01) trước khi xuất CSV/Excel.
+ * 
+ * Hàm tự động phát hiện các cột chứa giá trị số (dựa trên nội dung dữ liệu),
+ * chuyển đổi chúng thành kiểu number thực sự để Excel đọc đúng.
+ */
+const parseVNNumber = (val: any): number | null => {
+  if (val === null || val === undefined || String(val).trim() === '') return null;
+  if (typeof val === 'number') return isNaN(val) ? null : val;
+  let s = String(val).trim();
+  // Loại bỏ ký tự không phải số, dấu chấm, dấu phẩy, dấu trừ
+  const cleaned = s.replace(/[^\d.,-]/g, '');
+  if (!cleaned) return null;
+  s = cleaned;
+
+  // Nhiều dấu chấm → chấm là dấu phân cách hàng nghìn VN (1.234.567,89)
+  if ((s.match(/\./g) || []).length > 1) {
+    s = s.replace(/\./g, '').replace(',', '.');
+    const r = parseFloat(s);
+    return isNaN(r) ? null : r;
+  }
+  // Nhiều dấu phẩy → phẩy là dấu phân cách hàng nghìn US (1,234,567.89)
+  if ((s.match(/,/g) || []).length > 1) {
+    s = s.replace(/,/g, '');
+    const r = parseFloat(s);
+    return isNaN(r) ? null : r;
+  }
+  // Có cả dấu chấm và dấu phẩy
+  if (s.indexOf('.') !== -1 && s.indexOf(',') !== -1) {
+    if (s.lastIndexOf('.') < s.lastIndexOf(',')) {
+      // 1.234,56 → VN format
+      s = s.replace(/\./g, '').replace(',', '.');
+    } else {
+      // 1,234.56 → US format
+      s = s.replace(/,/g, '');
+    }
+    const r = parseFloat(s);
+    return isNaN(r) ? null : r;
+  }
+  // Chỉ có dấu chấm
+  if (s.indexOf('.') !== -1) {
+    const parts = s.split('.');
+    // 1.234 (3 chữ số sau dấu chấm) → dấu phân cách hàng nghìn
+    if (parts.length === 2 && parts[1].length === 3) {
+      s = s.replace('.', '');
+    }
+    const r = parseFloat(s);
+    return isNaN(r) ? null : r;
+  }
+  // Chỉ có dấu phẩy → dấu thập phân VN (1234,56)
+  if (s.indexOf(',') !== -1) {
+    s = s.replace(',', '.');
+    const r = parseFloat(s);
+    return isNaN(r) ? null : r;
+  }
+  const r = parseFloat(s);
+  return isNaN(r) ? null : r;
+};
+
+/**
+ * Chuyển đổi tất cả các cột số trong mảng dữ liệu trước khi xuất.
+ * Tự động phát hiện cột số bằng cách kiểm tra giá trị của 10 dòng đầu.
+ */
+export const convertNumericColumnsForExport = (data: any[]): any[] => {
+  if (!data || data.length === 0) return data;
+
+  const headers = Object.keys(data[0]);
+  // Phát hiện cột nào chứa giá trị số bằng cách kiểm tra vài dòng đầu
+  const numericCols = new Set<string>();
+  const sampleSize = Math.min(data.length, 10);
+
+  for (const header of headers) {
+    let numericCount = 0;
+    let nonEmptyCount = 0;
+    for (let i = 0; i < sampleSize; i++) {
+      const val = data[i][header];
+      if (val === null || val === undefined || String(val).trim() === '') continue;
+      nonEmptyCount++;
+      const parsed = parseVNNumber(val);
+      if (parsed !== null) numericCount++;
+    }
+    // Nếu >= 70% giá trị không rỗng là số → coi là cột số
+    if (nonEmptyCount > 0 && (numericCount / nonEmptyCount) >= 0.7) {
+      numericCols.add(header);
+    }
+  }
+
+  if (numericCols.size === 0) return data;
+
+  return data.map(row => {
+    const newRow: any = { ...row };
+    numericCols.forEach(col => {
+      const parsed = parseVNNumber(row[col]);
+      if (parsed !== null) {
+        newRow[col] = parsed;
+      }
+    });
+    return newRow;
+  });
+};
+
+export const exportToCSV = (data: any[], filename: string) => {
+  if (!data || data.length === 0) {
+    console.warn("exportToCSV: Dữ liệu rỗng, không có dòng nào để xuất!", data);
+    return;
+  }
+  // Tự động chuyển đổi cột số VN (1.234,01) → number (1234.01) trước khi xuất
+  const convertedData = convertNumericColumnsForExport(data);
+  const csv = Papa.unparse(convertedData);
+  console.log(`exportToCSV [${filename}] - Số dòng: ${data.length}, Kích thước CSV: ${csv.length} ký tự`);
+  console.log("CSV Preview:", csv.slice(0, 300));
+
+  const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv;charset=utf-8' });
   const link = document.createElement('a');
   if (link.download !== undefined) {
     const url = URL.createObjectURL(blob);
+    const finalFilename = filename.toLowerCase().endsWith('.csv') ? filename : `${filename}.csv`;
     link.setAttribute('href', url);
-    link.setAttribute('download', filename);
+    link.setAttribute('download', finalFilename);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   }
 };
 
 export const exportToExcel = async (data: any[], filename: string) => {
   if (data.length === 0) return;
+  
+  // Tự động chuyển đổi cột số VN (1.234,01) → number (1234.01) trước khi xuất
+  const convertedData = convertNumericColumnsForExport(data);
   
   // Dynamically load the xlsx library from CDN to avoid npm/Vite issues
   if (!(window as any).XLSX) {
@@ -129,7 +243,7 @@ export const exportToExcel = async (data: any[], filename: string) => {
   }
   
   const XLSX = (window as any).XLSX;
-  const worksheet = XLSX.utils.json_to_sheet(data);
+  const worksheet = XLSX.utils.json_to_sheet(convertedData);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Data');
   XLSX.writeFile(workbook, `${filename}.xlsx`);

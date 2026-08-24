@@ -917,7 +917,84 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [materialListPage, setMaterialListPage] = useState(1);
   const [isProductionExportModalOpen, setIsProductionExportModalOpen] = useState(false);
   const [selectedExportColumns, setSelectedExportColumns] = useState<string[]>([]);
+  const [isOrderExportScopeModalOpen, setIsOrderExportScopeModalOpen] = useState(false);
+  const [orderExportScope, setOrderExportScope] = useState<'FILTERED' | 'MTD' | 'ALL'>('FILTERED');
+  const [isOrderExportModalOpen, setIsOrderExportModalOpen] = useState(false);
+  const [selectedOrderExportColumns, setSelectedOrderExportColumns] = useState<string[]>([]);
+  // Card 2: TKBV
+  const [isTkbvExportScopeModalOpen, setIsTkbvExportScopeModalOpen] = useState(false);
+  const [tkbvExportScope, setTkbvExportScope] = useState<'FILTERED' | 'MTD' | 'ALL'>('FILTERED');
+  const [isTkbvExportModalOpen, setIsTkbvExportModalOpen] = useState(false);
+  const [selectedTkbvExportColumns, setSelectedTkbvExportColumns] = useState<string[]>([]);
+  // Card 3: PTHSP
+  const [isPthspExportScopeModalOpen, setIsPthspExportScopeModalOpen] = useState(false);
+  const [pthspExportScope, setPthspExportScope] = useState<'FILTERED' | 'MTD' | 'ALL'>('FILTERED');
+  const [isPthspExportModalOpen, setIsPthspExportModalOpen] = useState(false);
+  const [selectedPthspExportColumns, setSelectedPthspExportColumns] = useState<string[]>([]);
+  // Card 4: Nhập kho
+  const [isInvExportScopeModalOpen, setIsInvExportScopeModalOpen] = useState(false);
+  const [invExportScope, setInvExportScope] = useState<'FILTERED' | 'MTD' | 'ALL'>('FILTERED');
+  const [isInvExportModalOpen, setIsInvExportModalOpen] = useState(false);
+  const [selectedInvExportColumns, setSelectedInvExportColumns] = useState<string[]>([]);
+  // Card 5: Xuất kho
+  const [isExpExportScopeModalOpen, setIsExpExportScopeModalOpen] = useState(false);
+  const [expExportScope, setExpExportScope] = useState<'FILTERED' | 'MTD' | 'ALL'>('FILTERED');
+  const [isExpExportModalOpen, setIsExpExportModalOpen] = useState(false);
+  const [selectedExpExportColumns, setSelectedExpExportColumns] = useState<string[]>([]);
+  // Card 6: Tồn kho
+  const [isStockExportScopeModalOpen, setIsStockExportScopeModalOpen] = useState(false);
+  const [stockExportScope, setStockExportScope] = useState<'FILTERED' | 'MTD' | 'ALL'>('FILTERED');
+  const [isStockExportModalOpen, setIsStockExportModalOpen] = useState(false);
+  const [selectedStockExportColumns, setSelectedStockExportColumns] = useState<string[]>([]);
   const MATERIAL_ITEMS_PER_PAGE = 15;
+
+  const effectiveOrderColumns = useMemo(() => {
+    if (orderColumns && orderColumns.length > 0) return orderColumns;
+    if (orderData && orderData.length > 0) {
+      return Object.keys(orderData[0]).filter(k => k && k.trim() !== '').map(k => ({ key: k, label: k, type: 'string' as const }));
+    }
+    return [];
+  }, [orderColumns, orderData]);
+
+  const effectiveTkbvColumns = useMemo(() => {
+    if (tkbvColumns && tkbvColumns.length > 0) return tkbvColumns;
+    if (tkbvData && tkbvData.length > 0) {
+      return Object.keys(tkbvData[0]).filter(k => k && k.trim() !== '').map(k => ({ key: k, label: k, type: 'string' as const }));
+    }
+    return [];
+  }, [tkbvColumns, tkbvData]);
+
+  const effectivePthspColumns = useMemo(() => {
+    if (pthspColumns && pthspColumns.length > 0) return pthspColumns;
+    if (pthspData && pthspData.length > 0) {
+      return Object.keys(pthspData[0]).filter(k => k && k.trim() !== '').map(k => ({ key: k, label: k, type: 'string' as const }));
+    }
+    return [];
+  }, [pthspColumns, pthspData]);
+
+  const effectiveInvColumns = useMemo(() => {
+    if (inventoryColumns && inventoryColumns.length > 0) return inventoryColumns;
+    if (inventoryData && inventoryData.length > 0) {
+      return Object.keys(inventoryData[0]).filter(k => k && k.trim() !== '').map(k => ({ key: k, label: k, type: 'string' as const }));
+    }
+    return [];
+  }, [inventoryColumns, inventoryData]);
+
+  const effectiveExpColumns = useMemo(() => {
+    if (exportColumns && exportColumns.length > 0) return exportColumns;
+    if (exportData && exportData.length > 0) {
+      return Object.keys(exportData[0]).filter(k => k && k.trim() !== '').map(k => ({ key: k, label: k, type: 'string' as const }));
+    }
+    return [];
+  }, [exportColumns, exportData]);
+
+  const effectiveStockColumns = useMemo(() => {
+    if (stockColumns && stockColumns.length > 0) return stockColumns;
+    if (stockData && stockData.length > 0) {
+      return Object.keys(stockData[0]).filter(k => k && k.trim() !== '').map(k => ({ key: k, label: k, type: 'string' as const }));
+    }
+    return [];
+  }, [stockColumns, stockData]);
 
   // Default week filter to current week
   useEffect(() => {
@@ -1219,6 +1296,11 @@ const Dashboard: React.FC<DashboardProps> = ({
     setIsProductionExportModalOpen(true);
   };
 
+  const handleOpenOrderExport = () => {
+    setOrderExportScope('FILTERED');
+    setIsOrderExportScopeModalOpen(true);
+  };
+
   const handleExportBottlenecks = () => {
     const flatBottleneckData = bottleneckData.map(item => ({
       "Công đoạn": item.name,
@@ -1285,6 +1367,17 @@ const Dashboard: React.FC<DashboardProps> = ({
     });
     return maxDate;
   }, [overviewDateFilters, unifiedDateOptions]);
+
+  const mtdOrderData = useMemo(() => {
+    if (!latestUnifiedDate || !orderDateKey) return orderData;
+    const target = latestUnifiedDate as Date;
+    const tMonth = target.getMonth();
+    const tYear = target.getFullYear();
+    return orderData.filter(row => {
+      const d = parseVNDate(String(row[orderDateKey] || ''));
+      return d && d.getMonth() === tMonth && d.getFullYear() === tYear && d.getTime() <= target.getTime();
+    });
+  }, [orderData, latestUnifiedDate, orderDateKey]);
 
   const calculatePivotAnalysis = (
     data: DataRow[],
@@ -3991,9 +4084,19 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </h3>
                 <p className="text-xs text-slate-500 mt-1">Dữ liệu được tổng hợp từ nguồn Đơn hàng tổng</p>
               </div>
-              <button onClick={() => setIsIpoDetailModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full transition-colors">
-                <X size={24} />
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleOpenOrderExport}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 bg-pink-50 text-pink-700 hover:bg-pink-100 rounded-lg text-xs font-bold border border-pink-200 transition-all shadow-sm active:scale-95 cursor-pointer"
+                  title="Xuất dữ liệu Đơn hàng mới (P001) ra file .CSV"
+                >
+                  <Download size={15} />
+                  <span>Xuất CSV</span>
+                </button>
+                <button onClick={() => setIsIpoDetailModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full transition-colors cursor-pointer">
+                  <X size={24} />
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 custom-scrollbar">
@@ -4453,6 +4556,273 @@ const Dashboard: React.FC<DashboardProps> = ({
               >
                 <Download size={18} /> Xác Nhận Xuất
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* POPUP 1: CHỌN PHẠM VI XUẤT DỮ LIỆU ĐƠN HÀNG (P001) */}
+      {isOrderExportScopeModalOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-200">
+            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-pink-600 to-rose-600">
+              <div className="flex items-center gap-3 text-white">
+                <div className="p-2 bg-white/20 rounded-lg">
+                  <Download size={22} className="text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white uppercase tracking-wider">Tùy Chọn Phạm Vi Xuất</h3>
+                  <p className="text-[10px] text-pink-100 font-medium">Bước 1/2: Chọn phạm vi dữ liệu xuất</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsOrderExportScopeModalOpen(false)}
+                className="p-1.5 hover:bg-white/20 rounded-full transition-all text-white/90 hover:text-white cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 bg-slate-50/50 flex flex-col gap-4">
+              <p className="text-sm font-semibold text-slate-700">Bạn muốn xuất dữ liệu theo tùy chọn nào?</p>
+
+              <div className="flex flex-col gap-3">
+                {/* Option 1: Theo bộ lọc ngày */}
+                <div
+                  onClick={() => setOrderExportScope('FILTERED')}
+                  className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-3 ${orderExportScope === 'FILTERED' ? 'border-pink-500 bg-pink-50/70 shadow-sm ring-2 ring-pink-200' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                >
+                  <input
+                    type="radio"
+                    name="orderExportScope"
+                    checked={orderExportScope === 'FILTERED'}
+                    onChange={() => setOrderExportScope('FILTERED')}
+                    className="mt-1 text-pink-600 focus:ring-pink-500 cursor-pointer"
+                  />
+                  <div className="flex-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-bold text-slate-800">Xuất theo bộ lọc ngày</span>
+                      <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-pink-100 text-pink-700">
+                        {filteredOrderData.length.toLocaleString('en-US')} dòng
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {overviewDateFilters.length > 0
+                        ? `Đang áp dụng ngày: ${overviewDateFilters.join(', ')}`
+                        : 'Xuất theo ngày hiển thị hiện tại'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Option 2: Theo bộ lọc lũy kế tháng (MTD) */}
+                <div
+                  onClick={() => setOrderExportScope('MTD')}
+                  className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-3 ${orderExportScope === 'MTD' ? 'border-pink-500 bg-pink-50/70 shadow-sm ring-2 ring-pink-200' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                >
+                  <input
+                    type="radio"
+                    name="orderExportScope"
+                    checked={orderExportScope === 'MTD'}
+                    onChange={() => setOrderExportScope('MTD')}
+                    className="mt-1 text-pink-600 focus:ring-pink-500 cursor-pointer"
+                  />
+                  <div className="flex-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-bold text-slate-800">Xuất theo bộ lọc lũy kế tháng</span>
+                      <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
+                        {mtdOrderData.length.toLocaleString('en-US')} dòng
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Lũy kế tháng {latestUnifiedDate ? `${latestUnifiedDate.getMonth() + 1}/${latestUnifiedDate.getFullYear()}` : ''} (từ đầu tháng đến ngày lọc {latestUnifiedDate ? `${latestUnifiedDate.getDate()}/${latestUnifiedDate.getMonth() + 1}` : ''})
+                    </p>
+                  </div>
+                </div>
+
+                {/* Option 3: Đầy đủ toàn bộ dữ liệu */}
+                <div
+                  onClick={() => setOrderExportScope('ALL')}
+                  className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-3 ${orderExportScope === 'ALL' ? 'border-pink-500 bg-pink-50/70 shadow-sm ring-2 ring-pink-200' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                >
+                  <input
+                    type="radio"
+                    name="orderExportScope"
+                    checked={orderExportScope === 'ALL'}
+                    onChange={() => setOrderExportScope('ALL')}
+                    className="mt-1 text-pink-600 focus:ring-pink-500 cursor-pointer"
+                  />
+                  <div className="flex-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-bold text-slate-800">Xuất đầy đủ dữ liệu (Gốc)</span>
+                      <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                        {orderData.length.toLocaleString('en-US')} dòng
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Bao gồm toàn bộ tất cả các dòng dữ liệu đơn hàng trong hệ thống (không lọc).
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-200 bg-white flex justify-end gap-3">
+              <button
+                onClick={() => setIsOrderExportScopeModalOpen(false)}
+                className="px-5 py-2 text-slate-600 font-bold hover:bg-slate-100 rounded-lg transition-all text-sm cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={() => {
+                  setIsOrderExportScopeModalOpen(false);
+                  setSelectedOrderExportColumns(effectiveOrderColumns.map(c => c.key));
+                  setIsOrderExportModalOpen(true);
+                }}
+                className="px-6 py-2 bg-pink-600 text-white font-bold rounded-lg hover:bg-pink-700 transition-all shadow-md active:scale-95 text-sm flex items-center gap-2 cursor-pointer"
+              >
+                Tiếp tục (Chọn cột) &rarr;
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* POPUP 2: CHỌN CỘT XUẤT DỮ LIỆU ĐƠN HÀNG (P001) */}
+      {isOrderExportModalOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-200">
+            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-pink-600 to-rose-600">
+              <div className="flex items-center gap-3 text-white">
+                <div className="p-2 bg-white/20 rounded-lg">
+                  <Download size={24} className="text-white" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xl font-bold text-white uppercase tracking-wider">Chọn Cột Xuất Dữ Liệu</h3>
+                    <span className="text-[10px] bg-white/20 text-white font-bold px-2 py-0.5 rounded-full border border-white/30">
+                      {orderExportScope === 'FILTERED' ? 'Theo bộ lọc ngày' : orderExportScope === 'MTD' ? 'Lũy kế tháng' : 'Toàn bộ'}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-pink-100 font-medium">Bước 2/2: Chọn các cột cần xuất ra file CSV (.csv)</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsOrderExportModalOpen(false)}
+                className="p-2 hover:bg-white/20 rounded-full transition-all text-white/90 hover:text-white cursor-pointer"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 custom-scrollbar">
+              <div className="mb-4 flex gap-2 justify-between items-center">
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setSelectedOrderExportColumns(effectiveOrderColumns.map(c => c.key))}
+                    className="px-3 py-1.5 text-xs font-semibold bg-slate-200 text-slate-700 hover:bg-slate-300 rounded transition-colors cursor-pointer"
+                  >
+                    Chọn Tất Cả
+                  </button>
+                  <button
+                    onClick={() => setSelectedOrderExportColumns([])}
+                    className="px-3 py-1.5 text-xs font-semibold bg-slate-200 text-slate-700 hover:bg-slate-300 rounded transition-colors cursor-pointer"
+                  >
+                    Bỏ Chọn Tất Cả
+                  </button>
+                </div>
+                <span className="text-xs text-slate-500 font-medium">
+                  Đã chọn: <b className="text-pink-600">{selectedOrderExportColumns.length}</b>/{effectiveOrderColumns.length} cột
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {effectiveOrderColumns.map(col => {
+                  const isSelected = selectedOrderExportColumns.includes(col.key);
+                  return (
+                    <label key={col.key} className={`flex items-center gap-2 p-2 border rounded cursor-pointer transition-colors ${isSelected ? 'bg-pink-50 border-pink-300 text-pink-800 font-medium' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                      <input
+                        type="checkbox"
+                        className="rounded border-slate-300 text-pink-600 focus:ring-pink-500 cursor-pointer"
+                        checked={isSelected}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedOrderExportColumns(prev => [...prev, col.key]);
+                          } else {
+                            setSelectedOrderExportColumns(prev => prev.filter(k => k !== col.key));
+                          }
+                        }}
+                      />
+                      <span className="text-sm truncate" title={col.label}>{col.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-200 bg-white flex justify-between items-center gap-3">
+              <button
+                onClick={() => {
+                  setIsOrderExportModalOpen(false);
+                  setIsOrderExportScopeModalOpen(true);
+                }}
+                className="px-4 py-2 text-slate-600 font-bold hover:bg-slate-100 rounded-lg transition-all text-sm flex items-center gap-1 cursor-pointer"
+              >
+                &larr; Quay lại
+              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setIsOrderExportModalOpen(false)}
+                  className="px-5 py-2 text-slate-600 font-bold hover:bg-slate-100 rounded-lg transition-all text-sm cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={() => {
+                    let sourceData: DataRow[] = [];
+                    let suffix = 'Theo_Bo_Loc_Ngay';
+                    if (orderExportScope === 'ALL') {
+                      sourceData = orderData;
+                      suffix = 'Toan_Bo';
+                    } else if (orderExportScope === 'MTD') {
+                      sourceData = (mtdOrderData && mtdOrderData.length > 0) ? mtdOrderData : orderData;
+                      suffix = `Luy_Ke_Thang_T${latestUnifiedDate ? latestUnifiedDate.getMonth() + 1 : ''}`;
+                    } else {
+                      sourceData = (filteredOrderData && filteredOrderData.length > 0) ? filteredOrderData : orderData;
+                      suffix = 'Theo_Bo_Loc_Ngay';
+                    }
+
+                    if (!sourceData || sourceData.length === 0) {
+                      alert("Không có dữ liệu đơn hàng nào để xuất!");
+                      return;
+                    }
+
+                    const exportDataMapped = sourceData.map(row => {
+                      const newRow: any = {};
+                      selectedOrderExportColumns.forEach(colKey => {
+                        const colDef = effectiveOrderColumns.find(c => c.key === colKey);
+                        const headerLabel = colDef ? colDef.label : colKey;
+                        newRow[headerLabel] = row[colKey] !== undefined && row[colKey] !== null ? row[colKey] : '';
+                      });
+                      return newRow;
+                    });
+
+                    console.log("Exporting Order Data (P001):", {
+                      scope: orderExportScope,
+                      totalSourceRows: sourceData.length,
+                      selectedColumnsCount: selectedOrderExportColumns.length,
+                      sampleRow: exportDataMapped[0]
+                    });
+
+                    exportToCSV(exportDataMapped, `Don_Hang_Moi_P001_${suffix}_${new Date().toISOString().split('T')[0]}.csv`);
+                    setIsOrderExportModalOpen(false);
+                  }}
+                  disabled={selectedOrderExportColumns.length === 0}
+                  className="px-8 py-2.5 bg-pink-600 text-white font-bold rounded-lg hover:bg-pink-700 transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm cursor-pointer"
+                >
+                  <Download size={18} /> Xác Nhận Xuất (.CSV)
+                </button>
+              </div>
             </div>
           </div>
         </div>
