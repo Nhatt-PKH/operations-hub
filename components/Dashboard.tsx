@@ -753,6 +753,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [isInventoryDetailModalOpen, setIsInventoryDetailModalOpen] = useState(false);
   const [isExportDetailModalOpen, setIsExportDetailModalOpen] = useState(false);
   const [isStockDetailModalOpen, setIsStockDetailModalOpen] = useState(false);
+  const [isFunnelPivotModalOpen, setIsFunnelPivotModalOpen] = useState(false);
   const [bottleneckViewMode, setBottleneckViewMode] = useState<'BOP' | 'TÌNH TRẠNG'>('BOP');
 
   const findColumnKey = (cols: ColumnDefinition[], target: string) => {
@@ -2989,6 +2990,65 @@ const Dashboard: React.FC<DashboardProps> = ({
 
 
         <div ref={productionStatusRef} id="production-status-section" className="scroll-mt-24 w-full bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col gap-8">
+
+          {/* Funnel Chart - TÌNH TRẠNG ĐƠN HÀNG AATN */}
+          <div className="mb-0">
+            <div className="flex justify-end mb-3">
+              <button
+                onClick={() => setIsFunnelPivotModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-100 font-medium text-xs border border-slate-200 transition-colors"
+                title="Xem bảng chi tiết"
+              >
+                <Eye size={14} /> Chi tiết
+              </button>
+            </div>
+
+            <div className="w-full flex flex-col bg-slate-50/50 p-6 rounded-xl border border-slate-200 relative">
+              <h3 className="font-serif text-2xl md:text-3xl font-bold uppercase text-center mb-8 text-slate-800 tracking-wide">
+                TÌNH TRẠNG ĐƠN HÀNG AATN
+              </h3>
+
+              <div className="flex flex-row gap-[30px] w-full max-w-5xl mx-auto relative mt-2">
+                <div className="w-auto shrink-0 flex flex-col gap-3">
+                  {customFunnelData.map((item) => (
+                    <div key={`lbl-${item.id}`} className="h-10 text-right font-semibold text-slate-700 text-sm flex items-center justify-end whitespace-nowrap">
+                      {item.name}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex-1 relative flex flex-col gap-3 min-w-0">
+                  <div className="absolute top-0 left-0 w-full h-full pointer-events-none z-30">
+                    <svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 100 100" className="overflow-visible">
+                      <polygon
+                        points="-2,0 102,0 50,100"
+                        fill="none"
+                        stroke="#ef4444"
+                        strokeWidth="2px"
+                        strokeDasharray="6 4"
+                        vectorEffect="non-scaling-stroke"
+                      />
+                    </svg>
+                  </div>
+
+                  {customFunnelData.map((item) => (
+                    <div key={`bar-${item.id}`} className="h-10 flex justify-center w-full relative z-20">
+                      <div
+                        className="h-full flex items-center justify-center rounded-sm transition-all duration-500 shadow-sm"
+                        style={{ width: `${item.percentage}%`, backgroundColor: item.color }}
+                        title={`${item.name}: ${formatNumber(item.value, workshopMetric)}`}
+                      >
+                        <span className="text-black font-bold text-sm truncate px-1">
+                          {Math.round(item.value / 1000).toLocaleString('en-US')}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="flex flex-row justify-between items-start border-b border-slate-100 pb-4">
             <div className="flex flex-col gap-1">
               <h3 className="text-lg font-semibold text-slate-700 flex items-center gap-2">
@@ -3109,91 +3169,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </table>
               </div>
             ) : <div className="p-8 text-center text-slate-500 bg-slate-50 rounded-lg">Không đủ dữ liệu hoặc thiếu cấu hình cột để tạo bảng Pivot.</div>}
-          </div>
-          <div className="flex flex-col xl:flex-row gap-6">
-            <div className="w-full xl:w-1/5">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
-                <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2 uppercase tracking-wide">
-                  <Filter className="w-4 h-4 text-amber-600" /> 3. BIỂU ĐỒ PHỄU
-                </h4>
-              </div>
-              <div className="w-full">
-                {pivotFunnelData && pivotFunnelData.data && pivotFunnelData.data.length > 0 ? (
-                  <div className="overflow-x-auto rounded-lg border border-slate-200">
-                    <table className="min-w-full text-sm">
-                      <thead className="bg-slate-50">
-                        <tr>
-                          <th className="px-4 py-3 border-b border-slate-200 text-left font-bold text-slate-700 w-1/2">BOP</th>
-                          <th className="px-4 py-3 border-b border-slate-200 text-right font-bold text-slate-700 w-1/2">Giá Trị</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-slate-100">
-                        {pivotFunnelData.data.map((item, index) => (
-                          <tr key={item.name} className="hover:bg-slate-50 transition-colors">
-                            <td className="px-4 py-3 text-left font-medium text-slate-700 flex items-center gap-2">
-                              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 text-slate-600 text-xs font-bold">{index + 1}</span>
-                              <span className="truncate max-w-[80px]" title={item.name}>{item.name}</span>
-                            </td>
-                            <td className="px-4 py-3 text-right font-semibold text-slate-800">
-                              {formatNumber(item.value, workshopMetric)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot className="bg-wood-100 font-bold text-slate-800 border-t border-wood-300">
-                        <tr>
-                          <td className="px-4 py-3 text-left uppercase text-slate-700">Tổng Cộng</td>
-                          <td className="px-4 py-3 text-right text-slate-800 text-base">{formatNumber(pivotFunnelData.total, workshopMetric)}</td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                ) : <div className="p-8 text-center text-slate-500 bg-slate-50 rounded-lg border border-slate-200">Không có dữ liệu để hiển thị.</div>}
-              </div>
-            </div>
-
-            <div className="w-full xl:w-4/5 flex flex-col bg-slate-50/50 p-6 rounded-xl border border-slate-200 relative">
-              <h3 className="font-serif text-2xl md:text-3xl font-bold uppercase text-center mb-8 text-slate-800 tracking-wide">
-                TÌNH TRẠNG ĐƠN HÀNG AATN
-              </h3>
-
-              <div className="flex flex-row w-full max-w-5xl mx-auto relative mt-2">
-                <div className="w-auto shrink-0 pr-4 flex flex-col gap-3">
-                  {customFunnelData.map((item) => (
-                    <div key={`lbl-${item.id}`} className="h-10 text-right font-semibold text-slate-700 text-sm flex items-center justify-end whitespace-nowrap">
-                      {item.name}
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex-1 relative flex flex-col gap-3 min-w-0">
-                  <svg className="absolute top-0 -left-[5%] w-[110%] h-full pointer-events-none z-30 overflow-visible" preserveAspectRatio="none" viewBox="0 0 100 100">
-                    <polygon
-                      points="50,100 0,0 100,0"
-                      fill="none"
-                      stroke="#ef4444"
-                      strokeWidth="3.5"
-                      strokeDasharray="6,4"
-                      vectorEffect="non-scaling-stroke"
-                    />
-                  </svg>
-
-                  {customFunnelData.map((item) => (
-                    <div key={`bar-${item.id}`} className="h-10 flex justify-center w-full relative z-20">
-                      <div
-                        className="h-full flex items-center justify-center rounded-sm transition-all duration-500 shadow-sm"
-                        style={{ width: `${item.percentage}%`, backgroundColor: item.color }}
-                        title={`${item.name}: ${formatNumber(item.value, workshopMetric)}`}
-                      >
-                        <span className="text-black font-bold text-sm truncate px-1">
-                          {Math.round(item.value / 1000).toLocaleString('en-US')}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -4478,6 +4453,56 @@ const Dashboard: React.FC<DashboardProps> = ({
               >
                 <Download size={18} /> Xác Nhận Xuất
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Funnel Pivot Detail Modal */}
+      {isFunnelPivotModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 sm:p-6" onClick={() => setIsFunnelPivotModalOpen(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center p-4 sm:p-6 border-b border-slate-100 bg-slate-50/50">
+              <div>
+                <h2 className="text-lg font-bold text-slate-800">Chi tiết dữ liệu Phễu</h2>
+                <p className="text-xs text-slate-500 mt-1">Phân tích giá trị theo BOP</p>
+              </div>
+              <button onClick={() => setIsFunnelPivotModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 sm:p-6 overflow-y-auto">
+              {pivotFunnelData && pivotFunnelData.data && pivotFunnelData.data.length > 0 ? (
+                <div className="overflow-x-auto rounded-lg border border-slate-200">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-slate-50">
+                      <tr>
+                        <th className="px-4 py-3 border-b border-slate-200 text-left font-bold text-slate-700 w-1/2">BOP</th>
+                        <th className="px-4 py-3 border-b border-slate-200 text-right font-bold text-slate-700 w-1/2">Giá Trị</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-slate-100">
+                      {pivotFunnelData.data.map((item, index) => (
+                        <tr key={item.name} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-4 py-3 text-left font-medium text-slate-700 flex items-center gap-2">
+                            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 text-slate-600 text-xs font-bold">{index + 1}</span>
+                            <span className="truncate max-w-[200px]" title={item.name}>{item.name}</span>
+                          </td>
+                          <td className="px-4 py-3 text-right font-semibold text-slate-800">
+                            {formatNumber(item.value, workshopMetric)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-wood-100 font-bold text-slate-800 border-t border-wood-300">
+                      <tr>
+                        <td className="px-4 py-3 text-left uppercase text-slate-700">Tổng Cộng</td>
+                        <td className="px-4 py-3 text-right text-slate-800 text-base">{formatNumber(pivotFunnelData.total, workshopMetric)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              ) : <div className="p-8 text-center text-slate-500 bg-slate-50 rounded-lg border border-slate-200">Không có dữ liệu để hiển thị.</div>}
             </div>
           </div>
         </div>
